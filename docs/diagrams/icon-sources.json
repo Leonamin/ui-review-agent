@@ -1,0 +1,45 @@
+{
+  "input": {
+    "source": "lucide",
+    "url": "https://cdn.jsdelivr.net/npm/lucide-static/icons/terminal.svg",
+    "file": "input.svg",
+    "bytes": 337
+  },
+  "evidence": {
+    "source": "lucide",
+    "url": "https://cdn.jsdelivr.net/npm/lucide-static/icons/scan-eye.svg",
+    "file": "evidence.svg",
+    "bytes": 584
+  },
+  "strategy": {
+    "source": "lucide",
+    "url": "https://cdn.jsdelivr.net/npm/lucide-static/icons/git-branch.svg",
+    "file": "strategy.svg",
+    "bytes": 391
+  },
+  "openai": {
+    "source": "svgl",
+    "url": "https://svgl.app/library/openai.svg",
+    "file": "openai.svg",
+    "bytes": 2430,
+    "dark_file": "openai_dark.svg"
+  },
+  "validator": {
+    "source": "lucide",
+    "url": "https://cdn.jsdelivr.net/npm/lucide-static/icons/shield-check.svg",
+    "file": "validator.svg",
+    "bytes": 495
+  },
+  "report": {
+    "source": "lucide",
+    "url": "https://cdn.jsdelivr.net/npm/lucide-static/icons/panels-top-left.svg",
+    "file": "report.svg",
+    "bytes": 390
+  },
+  "policy": {
+    "source": "lucide",
+    "url": "https://cdn.jsdelivr.net/npm/lucide-static/icons/scroll-text.svg",
+    "file": "policy.svg",
+    "bytes": 498
+  }
+}

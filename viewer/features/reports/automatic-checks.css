@@ -1,0 +1,11 @@
+.automatic-checks{display:grid;gap:12px;min-width:0}
+.automatic-checks article{display:grid;gap:8px;padding:12px;border:1px solid var(--gc-border);border-radius:8px}
+.automatic-check-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.automatic-checks h3,.automatic-checks p{margin:0}
+.automatic-checks .muted,.automatic-check-list{font-size:12px}
+.automatic-check-list{margin:8px 0 0}
+.automatic-check-list li+li{margin-top:8px}
+.automatic-checks > article .viewer-disclosure{margin-top:6px}
+.style-comparison-target{overflow-wrap:anywhere}
+.automatic-style-comparison{display:grid;gap:8px;min-width:0;overflow-wrap:anywhere}
+.automatic-style-comparison h4{margin:12px 0 0}

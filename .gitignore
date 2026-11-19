@@ -1,0 +1,48 @@
+node_modules/
+dist/
+runs/
+.auth/
+.env
+.env.*
+!.env.example
+*.local.json
+.DS_Store
+*.pem
+*.key
+**/auth.json
+**/credentials.json
+
+# Local experiment evidence, private ground truth and copied third-party source.
+/benchmarks/*
+!/benchmarks/history/
+/benchmarks/history/*
+!/benchmarks/history/README.md
+!/benchmarks/history/manifest.json
+!/benchmarks/strategy-pilot/
+/benchmarks/strategy-pilot/*
+!/benchmarks/strategy-pilot/README.md
+!/benchmarks/strategy-pilot/manifest.json
+!/benchmarks/verification-pilot/
+/benchmarks/verification-pilot/*
+!/benchmarks/verification-pilot/README.md
+!/benchmarks/verification-pilot/manifest.json
+!/benchmarks/verification-pilot/allowed-actions.json
+!/benchmarks/verification-linking-pilot/
+/benchmarks/verification-linking-pilot/*
+!/benchmarks/verification-linking-pilot/protocol.md
+!/benchmarks/verification-targets-pilot/
+/benchmarks/verification-targets-pilot/*
+!/benchmarks/verification-targets-pilot/protocol.md
+
+viewer/dist/
+viewer/storybook-static/
+!/benchmarks/verification-observation-pilot/
+/benchmarks/verification-observation-pilot/*
+!/benchmarks/verification-observation-pilot/protocol.md
+
+# Viewer-generated and user-edited report aliases remain local.
+**/.viewer-metadata/
+
+# Local image evaluation evidence, frozen engines and private answer keys.
+# Commit only sanitized summaries under reports/experiments/.
+/evaluation/

@@ -1,0 +1,5 @@
+.capture-viewer-trigger > .gc-button-content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gc-space-1);
+}

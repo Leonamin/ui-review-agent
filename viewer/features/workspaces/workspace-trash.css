@@ -1,0 +1,60 @@
+.workspace-trash-main > .muted {
+ margin-top: 8px;
+ word-break: keep-all;
+ overflow-wrap: anywhere;
+}
+
+.workspace-trash-list {
+ list-style: none;
+ padding: 0;
+ margin: 24px 0 0;
+ border: 1px solid var(--gc-border);
+ border-radius: var(--gc-radius);
+ background: var(--gc-surface);
+}
+
+.workspace-trash-item,
+.workspace-trash-feedback {
+ display: flex;
+ flex-wrap: wrap;
+ align-items: center;
+ justify-content: space-between;
+ gap: 12px 24px;
+ padding: 20px;
+ overflow-wrap: anywhere;
+}
+
+.workspace-trash-item + .workspace-trash-item {
+ border-top: 1px solid var(--gc-border);
+}
+
+.workspace-trash-item .muted,
+.workspace-trash-expiry {
+ margin-top: 4px;
+ font-size: var(--gc-text-sm);
+}
+
+.workspace-trash-expiry time {
+ font-weight: 650;
+}
+
+.workspace-trash-feedback,
+.workspace-trash-placeholder,
+.workspace-trash-main > .workspace-error {
+ margin-top: 20px;
+}
+
+.workspace-trash-feedback,
+.workspace-trash-placeholder {
+ border: 1px solid var(--gc-border);
+ border-radius: var(--gc-radius);
+ background: var(--gc-surface);
+}
+
+.workspace-trash-placeholder {
+ padding: 24px 20px;
+}
+
+.workspace-trash-feedback a {
+ text-decoration: underline;
+}

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Trail inventory</title>
+<style>
+  :root {
+    background: #fbfaf8;
+    color: #23252b;
+    font-family: system-ui, sans-serif;
+  }
+  :root[data-covered] body {
+    margin: 0;
+    min-height: 100vh;
+    background: #fbfaf8;
+    color: #23252b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-fixed]) {
+      background: #1c2027;
+      color: #eeedf5;
+    }
+    :root:not([data-fixed],[data-covered]) .low-contrast { color: #282b2e; }
+    :root:not([data-fixed],[data-covered]) .equal-contrast { color: #1c2027; }
+  }
+  main { padding: 1rem; }
+  .control-row { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+  .control-row button {
+    position: relative;
+    color: inherit;
+    font: inherit;
+    padding-inline: 1rem;
+    cursor: pointer;
+  }
+  .surface { border: 1px solid currentColor; border-radius: 999px; background: transparent; min-height: 2.25rem; }
+  .pill { border: 0; background: transparent; height: 2.5rem; }
+  .pill::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 1.75rem;
+    transform: translateY(-50%);
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+  .mixed .surface:first-child { min-height: 3rem; }
+</style>
+<script>
+  const parameters = new URLSearchParams(location.search);
+  const prefersDark = matchMedia('(prefers-color-scheme: dark)');
+  if (parameters.has('fixed')) document.documentElement.dataset.fixed = '';
+  if (parameters.has('covered')) document.documentElement.dataset.covered = '';
+  function markAppliedTheme() {
+    document.documentElement.dataset.appliedTheme = !parameters.has('fixed') && prefersDark.matches ? 'dark' : 'light';
+  }
+  markAppliedTheme();
+  prefersDark.addEventListener('change', markAppliedTheme);
+</script>
+<main>
+  <h1>Trail inventory</h1>
+  <p class="low-contrast">Weather details for the next available departure.</p>
+  <p class="equal-contrast">Read the arrival instructions before setting out.</p>
+  <div class="control-row" data-contract="uniform" role="group" aria-label="Refine trails">
+    <button class="surface" type="button">Open now</button>
+    <div><button class="pill" type="button" aria-haspopup="menu">Difficulty</button></div>
+    <button class="pill" type="button" aria-haspopup="menu">Distance from town</button>
+  </div>
+  <h2>Booking tools</h2>
+  <div class="control-row mixed" data-contract="mixed" role="group" aria-label="Booking tools">
+    <button class="surface" type="button">Reserve a trail guide</button>
+    <button class="pill" type="button">Policies</button>
+  </div>
+</main>
+</html>

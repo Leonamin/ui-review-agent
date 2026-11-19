@@ -1,0 +1,6 @@
+allowBuilds:
+  esbuild: false
+minimumReleaseAgeExclude:
+  - vite@8.3.8
+patchedDependencies:
+  playwright-core@1.65.0: patches/playwright-core@1.65.0.patch

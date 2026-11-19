@@ -1,0 +1,239 @@
+.workspace-style-candidate-summary {
+ display: grid;
+ grid-template-columns: minmax(0, 1fr) auto;
+ align-items: center;
+ gap: 6px 14px;
+ margin-top: 4px;
+ padding-top: 12px;
+ border-top: 1px solid var(--gc-border);
+}
+
+.workspace-style-candidate-summary h3 {
+ font-size: 16px;
+ min-width: 0;
+ overflow-wrap: anywhere;
+}
+
+.workspace-style-candidate-summary > .gc-button {
+ min-height: 36px;
+ padding-block: 5px;
+ font-size: 13px;
+ white-space: nowrap;
+}
+
+.gc-modal.style-candidate-dialog {
+ width: min(1120px, calc(100vw - 32px));
+ max-height: min(860px, calc(100dvh - 32px));
+}
+
+.style-candidate-body.has-picker {
+ display: grid;
+ grid-template-columns: 208px minmax(0, 1fr);
+ gap: 16px;
+ align-items: start;
+}
+
+.style-candidate-hub {
+ margin: 0;
+ padding: 0;
+ border: 0;
+ min-width: 0;
+}
+
+.style-candidate-hub legend {
+ margin-bottom: 6px;
+ font-size: 13px;
+ font-weight: 700;
+}
+
+.style-candidate-list {
+ max-height: 228px;
+ overflow: auto;
+ overscroll-behavior: contain;
+ scrollbar-width: thin;
+ border: 1px solid var(--gc-border);
+ border-radius: 9px;
+}
+
+.style-candidate-list label {
+ display: flex;
+ align-items: center;
+ gap: 8px;
+ min-height: 40px;
+ padding: 7px 9px;
+ font-size: 13px;
+ cursor: pointer;
+ overflow-wrap: anywhere;
+}
+
+.style-candidate-list label + label {
+ border-top: 1px solid var(--gc-border);
+}
+
+.style-candidate-list input {
+ flex: none;
+ accent-color: var(--gc-accent);
+}
+
+.style-candidate-list label:has(input:checked) {
+ background: var(--gc-accent-soft);
+ font-weight: 700;
+}
+
+.style-candidate-select {
+ display: none;
+}
+
+/* The portalled listbox sits above the candidate dialog and its backdrop. */
+.gc-select-content.style-candidate-options {
+ z-index: 102;
+}
+
+.style-candidate-detail {
+ min-width: 0;
+}
+
+.style-candidate-detail h3 {
+ font-size: 15px;
+ overflow-wrap: anywhere;
+}
+
+.style-candidate-captures {
+ display: grid;
+ grid-template-columns: repeat(2, minmax(0, 1fr));
+ gap: 12px;
+ margin-top: 14px;
+}
+
+.style-candidate-capture {
+ align-self: start;
+ overflow: hidden;
+ margin: 0;
+ border: 1px solid var(--gc-border);
+ border-radius: 10px;
+}
+
+.style-candidate-capture figcaption {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ flex-wrap: wrap;
+ gap: 2px 10px;
+ padding: 8px 12px;
+}
+
+.style-candidate-capture .text-link {
+ padding-block: 2px;
+}
+
+.style-candidate-capture .gc-image {
+ border: 0;
+ border-top: 1px solid var(--gc-border);
+ border-radius: 0;
+}
+
+.style-candidate-capture .gc-image img {
+ object-fit: contain;
+}
+
+.style-candidate-no-capture {
+ padding: 8px 12px;
+ color: var(--gc-text-muted);
+ font-size: 13px;
+}
+
+.style-candidate-measurements {
+ width: 100%;
+ margin-top: 16px;
+ border-collapse: collapse;
+ font-size: 13px;
+ overflow-wrap: anywhere;
+}
+
+.style-candidate-measurements caption {
+ margin-bottom: 5px;
+ font-weight: 700;
+ text-align: left;
+}
+
+.style-candidate-measurements th,
+.style-candidate-measurements td {
+ padding: 7px 10px;
+ border-bottom: 1px solid var(--gc-border);
+ text-align: left;
+}
+
+.style-candidate-measurements thead {
+ background: var(--gc-surface-subtle);
+}
+
+.style-candidate-masking {
+ margin-top: 8px;
+ font-size: 13px;
+}
+
+@media (max-width: 640px) {
+ .workspace-style-candidate-summary {
+  min-height: 55px;
+  gap: 6px;
+ }
+
+ .workspace-style-candidate-summary h3 {
+  font-size: 14px;
+ }
+
+ .workspace-style-candidate-summary > .gc-button {
+  padding-inline: 9px;
+ }
+
+ .style-candidate-body.has-picker {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+ }
+
+ .style-candidate-hub {
+  display: none;
+ }
+
+ .style-candidate-select {
+  display: block;
+ }
+
+ .style-candidate-select .gc-overlay-field {
+  width: 100%;
+  gap: 4px;
+ }
+
+ .style-candidate-captures {
+  gap: 8px;
+ }
+
+ .style-candidate-capture figcaption {
+  padding: 5px 7px;
+  font-size: 13px;
+ }
+
+ .style-candidate-capture figcaption .text-link {
+  font-size: 12px;
+ }
+
+ .style-candidate-measurements th,
+ .style-candidate-measurements td {
+  padding-inline: 5px;
+ }
+}
+
+@media (max-width: 360px) {
+ .workspace-style-candidate-summary h3 {
+  font-size: 13px;
+ }
+
+ .workspace-style-candidate-summary > .gc-button {
+  padding-inline: 8px;
+  font-size: 12px;
+ }
+
+ .workspace-style-candidate-summary > .gc-button svg {
+  display: none;
+ }
+}

@@ -1,0 +1,192 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>UI Review 엔진 동작 구조</title><style>
+/* engineered-paper theme (cool near-white, one accent, mono labels)
+ * All colors/fonts flow through the :root tokens — tweak tokens, not scattered values. */
+:root {
+  color-scheme: light;
+  --color-paper:   oklch(98.5% 0.004 250);
+  --color-paper-2: oklch(96.5% 0.005 252);
+  --color-rule:    oklch(93% 0.007 255);    /* graph-paper grid */
+  --color-rule-2:  oklch(83% 0.011 255);    /* hairline borders */
+  --color-muted:   oklch(56% 0.013 255);
+  --color-neutral: oklch(46% 0.015 255);    /* neutral edges */
+  --color-ink-2:   oklch(34% 0.018 257);
+  --color-ink:     oklch(24% 0.020 258);
+  --color-accent:  oklch(58% 0.20 256);     /* primary-flow edges, one signal color */
+  --color-graphite:oklch(24% 0.018 260);    /* dark tile for white/light logos */
+  /* group palette A — warm vendor (e.g. Cloudflare/AWS orange). Retune hue per vendor. */
+  --color-g1:      oklch(68% 0.15 55);
+  --color-g1-soft: oklch(78% 0.12 55);
+  --color-g1-ink:  oklch(52% 0.14 50);
+  --color-g1-tint: oklch(96.5% 0.015 60 / .5);
+  /* group palette B — accent-family (repo/tooling groups) */
+  --color-accent-soft: oklch(58% 0.20 256 / .45);
+  --color-accent-tint: oklch(97% 0.012 256 / .5);
+  /* JP glyphs: name JP faces explicitly — bare sans-serif fallback on Linux picks Chinese-variant CJK */
+  --font-display: "Geist", "Apple SD Gothic Neo", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Apple SD Gothic Neo", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px;
+  --radius-card: 10px; --radius-tile: 8px;
+  /* translucent veil behind node label text: matches paper on plain canvas, blends into
+     group tints instead of punching an off-color rectangle through them */
+  --color-veil: oklch(98.5% 0.004 250 / .78);
+}
+/* Dark variant: set data-theme="dark" on <html>. Tiles stay white — brand logos are drawn
+   for light grounds. Everything (arrowheads via context-stroke, legend via border-color)
+   follows the tokens, so toggling the attribute is all it takes. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper:   oklch(18% 0.012 255);
+  --color-paper-2: oklch(22% 0.014 255);
+  --color-rule:    oklch(24% 0.013 255);
+  --color-rule-2:  oklch(38% 0.018 255);
+  --color-muted:   oklch(65% 0.014 255);
+  --color-neutral: oklch(72% 0.012 255);
+  --color-ink-2:   oklch(85% 0.010 255);
+  --color-ink:     oklch(94% 0.008 255);
+  --color-accent:  oklch(70% 0.16 256);
+  --color-graphite:oklch(31% 0.020 260);
+  --color-g1:      oklch(70% 0.14 55);
+  --color-g1-soft: oklch(58% 0.11 55);
+  --color-g1-ink:  oklch(78% 0.12 55);
+  --color-g1-tint: oklch(26% 0.030 60 / .40);
+  --color-accent-soft: oklch(70% 0.16 256 / .5);
+  --color-accent-tint: oklch(28% 0.045 256 / .35);
+  --color-veil: oklch(18% 0.012 255 / .78);
+}
+@font-face { font-family:"Geist"; font-style:normal; font-weight:100 900; font-display:swap;
+  src:url(data:font/woff2;base64,%%FONT_DISPLAY%%) format("woff2"); }
+@font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800; font-display:swap;
+  src:url(data:font/woff2;base64,%%FONT_JBM%%) format("woff2"); }
+/* JetBrains Mono reads cramped at 9.5–11px; open every mono label slightly */
+.kicker, .node .role, .el, .legend, .foot { letter-spacing: 0.04em; }
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { overflow-x: clip; }
+body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-body); padding: var(--space-xl) var(--space-lg) var(--space-2xl); }
+.page { width: fit-content; max-width: 100%; margin: 0 auto; }
+
+.head { display:grid; grid-template-columns: 1fr auto; gap: var(--space-lg); align-items:end;
+  padding-bottom: var(--space-md); border-bottom: 1px solid var(--color-rule-2); margin-bottom: var(--space-lg); }
+.kicker { font-family: var(--font-mono); font-size: 11px;
+  color: var(--color-accent); margin-bottom: var(--space-sm); }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 4vw, 30px);
+  letter-spacing: -0.005em; line-height: 1.2; }
+.lede { max-width: 300px; font-size: 12px; line-height: 1.7; color: var(--color-neutral); padding-bottom: 2px; }
+@media (max-width: 680px) { .head { grid-template-columns: 1fr; align-items:start; } .lede { max-width:none; } }
+
+.scroller { overflow-x: auto; border: 1px solid var(--color-rule-2); border-radius: var(--radius-card); }
+/* CANVAS SIZE: set width/height here AND on svg.edges AND its viewBox — keep the three in sync */
+.canvas { position: relative; width: 1400px; height: 960px; background: var(--color-paper);
+  background-image:
+    linear-gradient(var(--color-rule) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-rule) 1px, transparent 1px);
+  background-size: 24px 24px; background-position: -1px -1px; }
+
+.group { position:absolute; border-radius: var(--radius-tile); }
+/* group labels are names like node names (display font), written in the brand's own case.
+   They sit inside the top-left corner, so the border stays unbroken and needs no mask */
+.g-label { position:absolute; top:12px; left:12px; display:flex; align-items:center; gap:6px;
+  font-family: var(--font-display); font-size: 12px; font-weight: 600;
+  color: var(--color-neutral); white-space: nowrap; }
+.g-label img { width: 14px; height: 14px; }
+/* group labels sit on the group's tint, not on a white tile: in the dark theme swap in the brand's own
+   dark-theme logo (lt/dk pair), or give a mark with black parts a white plate */
+.g-label img.dk, .tile img.dk { display:none; }
+[data-theme="dark"] .g-label img.lt, [data-theme="dark"] .tile img.lt { display:none; }
+[data-theme="dark"] .g-label img.dk, [data-theme="dark"] .tile img.dk { display:block; }
+[data-theme="dark"] .g-label img.plate { background:#fff; border-radius:3px; padding:2px; width:18px; height:18px; }
+.group.ga { border:1.5px solid var(--color-g1); background: var(--color-g1-tint); }
+.group.ga-nested { border:1.5px dashed var(--color-g1-soft); }
+.group.gb { border:1.5px solid var(--color-accent-soft); background: var(--color-accent-tint); }
+.group.ga > .g-label, .group.ga-nested > .g-label { color: var(--color-g1-ink); }
+.group.gb > .g-label { color: var(--color-accent); }
+.group.aws { border:1.5px solid var(--color-ink); border-radius:0; }
+.group.aws > .g-label { top:-1.5px; left:-1.5px; gap:8px; color: var(--color-ink); }
+.group.aws > .g-label img { width:30px; height:30px; }
+.group.aws.az > .g-label { top:8px; left:12px; }
+.group.aws.region, .group.aws.az { border-color:#00A4A6; border-style:dashed; }
+.group.aws.vpc { border-color:#8C4FFF; }
+.group.aws.private { border-color:#00A4A6; }
+.group.aws.public { border-color:#7AA116; }
+
+.node { position:absolute; width:132px; text-align:center; }
+.tile { width:60px; height:60px; margin:0 auto; border-radius: var(--radius-tile);
+  background:#fff; border:1px solid var(--color-rule-2); display:grid; place-items:center;
+  box-shadow: 0 1px 2px oklch(24% 0.02 258 / 0.05); transition: border-color .15s cubic-bezier(0.16,1,0.3,1); }
+.node:hover .tile { border-color: var(--color-accent); }
+.tile img { width:34px; height:34px; object-fit:contain; }
+.tile.wide img { width:44px; }                       /* wide-aspect logos */
+.tile.dark { background: var(--color-graphite); border-color: var(--color-graphite); }  /* white/light logos */
+.tile.bare { background:none; border:none; box-shadow:none; }
+.tile.bare img { width:60px; height:60px; }
+.tile.bare.res img { width:44px; height:44px; }
+.node .name { font-family: var(--font-display); font-weight:600; font-size:13px; margin-top: var(--space-sm); letter-spacing:0; }
+.node .role { font-family: var(--font-mono); font-size:9.5px; color: var(--color-muted); margin-top:2px; }
+/* veil behind label spans: crossing edges/grid fade behind text; translucent so it
+   blends into group tints (a solid paper rectangle looks pasted-on inside tinted groups) */
+.node .name span, .node .role span { background: var(--color-veil); backdrop-filter: blur(1.5px);
+  padding: 0 var(--space-xs); border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+
+svg.edges { position:absolute; inset:0; width:1400px; height:960px; pointer-events:none; }
+.e  { stroke: var(--color-accent); stroke-width:1.6; fill:none; }   /* primary flow */
+.n  { stroke: var(--color-neutral); stroke-width:1.4; fill:none; }  /* internal */
+path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
+.dash { stroke-dasharray:4 5; }                                     /* dev / deploy */
+.el { font-family: var(--font-mono); font-size:10.5px; fill: var(--color-neutral);
+  paint-order: stroke; stroke: var(--color-paper); stroke-width:4px; stroke-linejoin:round; }  /* halo */
+.el.a { fill: var(--color-accent); }
+
+.legend { display:flex; gap: var(--space-lg); align-items:center; margin-top: var(--space-md);
+  font-family: var(--font-mono); font-size:10px; color: var(--color-muted); flex-wrap:wrap; }
+.legend .sw { display:inline-block; width:30px; vertical-align:middle; margin-right:6px;
+  border-top:1.6px solid var(--color-accent); }
+.legend .sw.n { border-color: var(--color-neutral); border-top-width:1.4px; }
+.legend .sw.dash { border-top-style: dashed; }
+
+.foot { margin-top: var(--space-xl); padding-top: var(--space-md); border-top: 1px solid var(--color-rule-2);
+  display:flex; justify-content:space-between; gap: var(--space-md); flex-wrap:wrap;
+  font-family: var(--font-mono); font-size:10px; color: var(--color-muted); }
+.foot a { color: inherit; text-decoration-color: var(--color-rule-2); text-underline-offset: 2px; }
+.foot a:hover { color: var(--color-accent); }
+
+.node .name {font-size:15px;} .node .role{font-family:var(--font-body);font-size:12px;line-height:1.45;letter-spacing:0;}
+.g-label{font-size:14px}.canvas-title{position:absolute;left:30px;top:22px;font-size:24px;font-weight:700;letter-spacing:-.02em}
+.note {position:absolute;background:var(--color-paper);border:1px solid var(--color-rule-2);border-radius:10px;padding:20px;font-size:14px;line-height:1.7;color:var(--color-ink-2)}
+.note h2 {font-size:17px;color:var(--color-ink);margin-bottom:10px}.note p+p{margin-top:8px}.note strong{color:var(--color-ink)}
+.policy-note{background:var(--color-accent-tint);border-color:var(--color-accent-soft)}
+.note code{font-family:var(--font-mono);font-size:11px}.caption{position:absolute;font-size:13px;line-height:1.6;color:var(--color-muted)}
+.tag{font-family:var(--font-mono);font-size:11px;color:var(--color-accent);font-weight:600}.el{font-size:12px}
+.theme-button{font:inherit;font-size:12px;padding:7px 12px;border-radius:6px;background:var(--color-paper);color:var(--color-ink);border:1px solid var(--color-rule-2);cursor:pointer}
+</style></head><body><div class="page"><header class="head"><div><div class="kicker">UI REVIEW AGENT / 2026-11-12</div><h1>UI Review 엔진 동작 구조</h1></div><button class="theme-button" onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'">라이트 / 다크</button></header><div class="scroller"><div class="canvas"><div class="canvas-title">모델이 판단하고, 코드는 증거와 출력 형식을 관리합니다</div>
+<div class="group gb" style="left:30px;top:310px;width:180px;height:230px"><div class="g-label">요청</div></div>
+<div class="group gb" style="left:260px;top:310px;width:180px;height:230px"><div class="g-label">증거 수집</div></div>
+<div class="group gb" style="left:490px;top:70px;width:640px;height:470px"><div class="g-label">평가 흐름 · 로컬 코드가 모델 호출을 관리</div></div>
+<div class="group gb" style="left:1180px;top:310px;width:180px;height:230px"><div class="g-label">결과</div></div>
+<svg class="edges" viewBox="0 0 1400 960" aria-hidden="true"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="context-stroke"/></marker></defs><path class="e" d="M156 400 H314" marker-end="url(#ar)"/><text class="el a" x="235" y="389" text-anchor="middle">입력</text><path class="e" d="M386 400 H544" marker-end="url(#ar)"/><text class="el a" x="465" y="389" text-anchor="middle">증거</text><path class="e" d="M616 400 H774" marker-end="url(#ar)"/><text class="el a" x="695" y="389" text-anchor="middle">호출</text><path class="e" d="M846 400 H1004" marker-end="url(#ar)"/><text class="el a" x="925" y="389" text-anchor="middle">구조화 응답</text><path class="e" d="M1076 400 H1234" marker-end="url(#ar)"/><text class="el a" x="1155" y="389" text-anchor="middle">검증 결과</text><path class="n" d="M580 240 V364" marker-end="url(#ar)"/><text class="el" x="592" y="326">이미지 A/B/C에 적용</text></svg><div class="node" style="left:54px;top:370px"><div class="tile"><img src="%%ICON_input%%" alt=""></div><div class="name"><span>CLI 요청</span></div><div class="role"><span>URL 또는 이미지 1장</span></div></div><div class="node" style="left:284px;top:370px"><div class="tile"><img src="%%ICON_evidence%%" alt=""></div><div class="name"><span>관찰·증거 묶음</span></div><div class="role"><span>스크린샷 + 증거 ID</span></div></div><div class="node" style="left:514px;top:370px"><div class="tile"><img src="%%ICON_strategy%%" alt=""></div><div class="name"><span>전략 선택</span></div><div class="role"><span>기본 A · 전체 항목 리뷰</span></div></div><div class="node" style="left:744px;top:370px"><div class="tile"><img src="%%ICON_openai%%" alt=""></div><div class="name"><span>Codex CLI</span></div><div class="role"><span>로컬 CLI → AI 서비스</span></div></div><div class="node" style="left:974px;top:370px"><div class="tile"><img src="%%ICON_validator%%" alt=""></div><div class="name"><span>출력 검증</span></div><div class="role"><span>스키마 · 증거 연결</span></div></div><div class="node" style="left:1204px;top:370px"><div class="tile"><img src="%%ICON_report%%" alt=""></div><div class="name"><span>리뷰 결과</span></div><div class="role"><span>JSON / Markdown / 뷰어</span></div></div><div class="node" style="left:514px;top:130px"><div class="tile"><img src="%%ICON_policy%%" alt=""></div><div class="name"><span>이미지 판정 지침</span></div><div class="role"><span>이번에 변경한 부분</span></div></div>
+<div class="note policy-note" style="left:680px;top:120px;width:410px;height:170px">
+<div class="tag">IMAGE CLASSIFICATION · 0.1.0</div>
+<h2>관찰 → 기대 → 업무 영향</h2>
+<p>결함이 뒷받침되면 <strong>확정 문제</strong><br>결정적 증거가 부족하면 <strong>추가 확인</strong><br>선택적 이익이면 <strong>개선 제안</strong></p>
+</div>
+<div class="caption" style="left:30px;top:262px;width:410px">파란 선은 기본 A 전략의 요청 흐름입니다.<br>모델의 판단과 코드의 검증은 서로 다른 역할입니다.</div>
+<div class="note" style="left:30px;top:580px;width:410px;height:270px">
+<h2>입력마다 확보하는 증거가 다릅니다</h2>
+<p><strong>이미지:</strong> PNG/JPEG/WebP를 읽어 방향을 보정하고 PNG로 정규화합니다. 원본 해시와 증거 ID를 저장합니다.</p>
+<p><strong>URL:</strong> Playwright와 내부 MCP로 화면·DOM·접근성 정보를 수집하고 규칙 검사를 실행합니다.</p>
+<p>이미지에는 DOM·클릭·스크롤 증거가 없습니다. 추가 확인은 질문으로 남으며 자동 실행되지 않습니다.</p>
+</div>
+<div class="note" style="left:480px;top:580px;width:420px;height:270px">
+<h2>A / B / C는 기존 실행 전략입니다</h2>
+<p><strong>A 기본:</strong> 한 번의 종합 평가 호출</p>
+<p><strong>B 선택:</strong> 분야별 독립 세션 3회 → 결과 통합</p>
+<p><strong>C 선택:</strong> 발견 → 같은 증거로 후보 재판정<br>유지·추가 확인으로 낮춤·기각만 수행합니다.</p>
+<p>C는 새 증거 수집이나 사람의 검증이 아닙니다.<br>URL의 선택 기능 <code>--verify</code>와도 별개입니다.</p>
+</div>
+<div class="note" style="left:940px;top:580px;width:420px;height:270px">
+<h2>검증기는 형식과 근거 연결을 확인합니다</h2>
+<p>필수 필드·증거 ID·주장 연결 등을 검사하고, 유효하지 않은 출력을 제외하거나 추가 확인으로 낮춥니다.</p>
+<p><strong>의미가 맞는지는 모델 판단에 의존합니다.</strong><br>이미지에서 실제 결함인지 코드가 독립적으로 증명하는 구조는 아닙니다.</p>
+<p>확정 문제 / 추가 확인 / 개선 제안을 분리해 저장하고 뷰어에서 보여줍니다. 제안은 이미지 리뷰에 적용됩니다.</p>
+</div>
+<div class="caption" style="left:30px;top:886px;width:1330px;font-size:15px;color:var(--color-ink-2)"><strong>이번 변경은 모델에 주는 이미지 판정 지침과 진단 버전입니다.</strong> 새 모델 학습이나 새 자율 에이전트를 추가하지 않았습니다.<br>기존 이미지 입력·증거 저장·출력 검증·보고서 구조 위에서 동작합니다. URL 판정 지침은 이번에 변경하지 않았습니다.</div>
+</div></div><div class="legend"><span><i class="sw"></i>기본 요청 흐름</span><span><i class="sw n"></i>판정 지침 공급</span><span>기본 provider: Codex · Claude도 선택 가능 · 이미지 리뷰 기준 설명</span></div><footer class="foot"><span>icons: svgl / Lucide · Brand logos remain the trademarks of their owners.</span><a href="https://github.com/lisposter/stack-diagram">made with stack-diagram</a></footer></div></body></html>

@@ -1,0 +1,8 @@
+.project-post-hosts,.project-post-hosts form,.project-post-hosts fieldset{display:grid;gap:12px;min-width:0}
+.project-post-hosts{font-size:13px}
+.project-post-hosts p{margin:0}
+.project-post-hosts fieldset{margin:0;padding:0;border:0}
+.project-post-hosts-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end;padding:12px;border:1px solid var(--gc-border);border-radius:var(--gc-radius-sm)}
+.project-post-hosts-row label{display:grid;gap:5px;min-width:0;font-weight:600}
+.project-post-hosts-row .gc-input{width:100%;min-width:0}
+.project-post-hosts-list{margin:0;padding-left:18px;overflow-wrap:anywhere}

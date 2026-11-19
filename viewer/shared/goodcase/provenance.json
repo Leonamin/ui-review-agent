@@ -1,0 +1,66 @@
+{
+  "skill": "use-goodcase-ui",
+  "version": "0.1.0",
+  "contentHash": "a08e22e162b18870e5358944eccd886370c6e97ae05f16e2d4235c3cce4390d3",
+  "files": {
+    "components/basic/button.tsx": "38212cbf1429c70a6b22e0f17b71e251fdc917b65c6f62e6ab9f750223181f20",
+    "components/basic/badge.tsx": "43adccae936c3d1e16d589feae451365c783130f5f13d615420af355b4aeabf6",
+    "components/basic/card.tsx": "596d1741c79c00da614b27ec15d5d16810ee9b3fc5ea2eb26bf44e901bd8d7e2",
+    "components/basic/alert.tsx": "c919cdb12bf5609fabb5aec7e25b780617bde9de80297c131ecab3a6cd1eab9b",
+    "components/basic/image.tsx": "d745f4de5325c2a4f5b131a9ee1fe0d224d375b7392f7eea81630bb7a17b1014",
+    "components/basic/text-field.tsx": "40163f2c0b9b06b8501fb26bc46ce0326ba05dbedb8bc1c3f3d7f56735e79a09",
+    "components/basic/input.tsx": "86d6dece999e62880fb6bc2c08586a7878c3c08c442ebf5657267598fc023c88",
+    "components/basic/field.ts": "e4c031e56bf411e296e9a2cb6b520bd2811233775e4d0c224e3247c09d2eb23c",
+    "components/overlays/tabs.tsx": "7421c1a47a809158fa3c45dc113cf3aeb6006fc63b9e9f1b07312b06e076197f",
+    "styles/tokens.css": "8d70d5d73e8248fa97bda9800f63f3954bfcfb9c873ec85adc06ec4cea73cee7",
+    "styles/global.css": "84412012e99a87e6bade34b46ab9d76356c9aa824d01bf24461ddf242e0f554e",
+    "styles/basic.css": "d21bdf8775d237ee38dc3cecf99a8a069e0087d58cbe44180f1e1cb4c2212ac2",
+    "styles/tabs.css": "ddf659c5dcb240cf86f3cf53f1fdda6aff8912d394e612b1614a5011e2bd41ba",
+    "components/overlays/select.tsx": "fef2c5f320295e6be477fc7a9b69f9f1c1ac8e49e76fdc2dfec8b6dc06946d41",
+    "components/overlays/accordion.tsx": "6a2a18f793064ded40ca0e85cbae541083f5be9d89c15f893d35032f64b85316",
+    "components/overlays/types.ts": "660fe1c9f7a4dee5dfa8d3370eabb1be3bf6cfbe7fb818ae6743ff5beccb7d5b",
+    "components/basic/text-area.tsx": "f693ed0857c81182a5640c45b781490402da4f6ad0fed1fa91a46e3fae161491",
+    "styles/overlays.css": "da0fb0c5162c438d3b71b90e546aac26984cdcee9326b62d083ea0e1cd49df98"
+  },
+  "imageGalleryImport": {
+    "version": "0.1.0",
+    "contentHash": "6cec9b50e35770e4c50f3b2a0334aec4db58bf06ec8ae9e3c7375a4f319eb93f",
+    "files": {
+      "components/composed/gallery-image.tsx": {
+        "source": "assets/src/components/composed/gallery-image.tsx",
+        "sourceHash": "d83bac5caa9c31b6c5fa26d61192c762d94a4f2c352c4fa2c0d528025bdb72b2",
+        "usage": "adapted"
+      },
+      "components/composed/image-gallery.tsx": {
+        "source": "assets/src/components/composed/image-gallery.tsx",
+        "sourceHash": "34e5c3844dbb4e8a380221dae5fd352310ce16e30ff7789d4002f981f08a21f0",
+        "usage": "adapted"
+      },
+      "components/composed/image-viewer.tsx": {
+        "source": "assets/src/components/composed/image-viewer.tsx",
+        "sourceHash": "f6fde4ead909e9b2f4eb7767d292fac13cae7fa878633cfce4187de7501e325b",
+        "usage": "adapted"
+      },
+      "components/composed/use-viewer-gesture.ts": {
+        "source": "assets/src/components/composed/use-viewer-gesture.ts",
+        "sourceHash": "76eb8533afe1e0488e2018264f67c86d2ab4c84ba7ecc387c545f07f81c214e6",
+        "usage": "copied"
+      },
+      "components/composed/viewer-image.ts": {
+        "source": "assets/src/components/composed/viewer-image.ts",
+        "sourceHash": "d0d84c81138f426bb34dca4c85a44281ae14cab71ac46fab90a52458be2c1bff",
+        "usage": "copied"
+      },
+      "components/overlays/dialog.tsx": {
+        "source": "assets/src/components/overlays/dialog.tsx",
+        "sourceHash": "5c02c51ad067b6806a835b91f4e363f7d7c317bd70c7e7cb50f969ad2a08d151",
+        "usage": "adapted"
+      },
+      "styles/image-gallery.css": {
+        "source": "assets/src/styles/composed.css",
+        "sourceHash": "59642711375af50f8456e265b79d01de0abcbf433a40a8f62005eed9cf184a16",
+        "usage": "excerpt and theme mapping"
+      }
+    }
+  }
+}

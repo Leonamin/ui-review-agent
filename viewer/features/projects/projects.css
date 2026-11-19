@@ -1,0 +1,138 @@
+.project-index-actions {
+ display: flex;
+ flex-wrap: wrap;
+ align-items: center;
+ gap: 8px;
+}
+
+.project-settings-dialog {
+ overflow-wrap: anywhere;
+}
+
+.project-settings-dialog header {
+ border-bottom: 1px solid var(--gc-border);
+ margin-bottom: var(--gc-space-4);
+}
+
+.task-actions {
+ display: flex;
+ gap: 12px;
+ flex-wrap: wrap;
+ align-items: center;
+}
+
+.project-settings-dialog .task-actions {
+ justify-content: flex-end;
+}
+
+.project-settings-dialog fieldset .task-actions {
+ justify-content: flex-start;
+}
+
+.project-deletion-dialog {
+ overflow-wrap: anywhere;
+}
+
+.project-deletion-choices {
+ display: grid;
+ min-width: 0;
+ gap: 10px;
+ padding: 0;
+ border: 0;
+ margin: 0;
+}
+
+.project-deletion-choices legend {
+ margin-bottom: 6px;
+ font-weight: 650;
+}
+
+.project-deletion-choice {
+ display: grid;
+ grid-template-columns: auto 1fr;
+ align-items: start;
+ gap: 10px;
+ padding: 12px;
+ border: 1px solid var(--gc-border);
+ border-radius: var(--gc-radius-sm);
+ cursor: pointer;
+}
+
+.project-deletion-choice input {
+ margin: 4px 0 0;
+ accent-color: var(--gc-accent);
+}
+
+.project-deletion-choice:has(input:checked) {
+ border-color: var(--gc-accent);
+ background: var(--gc-accent-soft);
+}
+
+.project-deletion-choice:has(input:disabled) {
+ background: var(--gc-surface-subtle);
+ cursor: default;
+}
+
+.project-deletion-choice strong + span {
+ display: block;
+ margin-top: 4px;
+ color: var(--gc-text-muted);
+ font-size: var(--gc-text-sm);
+}
+
+.project-catalog-controls {
+ display: flex;
+ align-items: flex-end;
+ flex-wrap: wrap;
+ gap: 12px;
+ margin-top: 26px;
+}
+
+.project-catalog-controls > .gc-field {
+ flex: 1 1 240px;
+ max-width: 360px;
+ min-width: 0;
+}
+
+.project-catalog-controls > .gc-overlay-field {
+ flex: 0 1 160px;
+}
+
+.project-catalog-controls > .gc-field > label {
+ font-size: var(--gc-text-sm);
+}
+
+.project-catalog-notice {
+ margin-top: 12px;
+}
+
+.review-project-grid .review-project-card {
+ text-decoration: none;
+}
+
+.review-project-grid .review-project-card:hover h2 {
+ text-decoration: underline;
+}
+
+.project-initial img {
+ width: 26px;
+ height: 26px;
+ object-fit: contain;
+ border-radius: 4px;
+}
+
+.project-card-dates {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 4px 14px;
+}
+
+@media (max-width: 650px) {
+ .project-catalog-controls > .gc-field {
+  flex-basis: 100%;
+  max-width: none;
+ }
+ .project-catalog-controls > .gc-overlay-field {
+  flex: 1 1 110px;
+ }
+}

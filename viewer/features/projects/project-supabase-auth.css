@@ -1,0 +1,10 @@
+.project-supabase-auth,.project-supabase-auth form,.project-supabase-auth fieldset{display:grid;gap:12px;min-width:0}
+.project-supabase-auth{font-size:13px}
+.project-supabase-auth p{margin:0}
+.project-supabase-auth fieldset{margin:0;padding:0;border:0}
+.project-supabase-auth-row{position:relative;display:grid;gap:8px;padding:12px;border:1px solid var(--gc-border);border-radius:var(--gc-radius-sm)}
+.project-supabase-auth-row label{display:grid;gap:5px;min-width:0;font-weight:600}
+.project-supabase-auth-row label:first-child span{display:flex;align-items:center;min-height:44px;padding-right:76px}
+.project-supabase-auth-row .gc-input{width:100%;min-width:0}
+.project-supabase-auth-row button{position:absolute;top:12px;right:12px}
+.project-supabase-auth-list{margin:0;padding-left:18px;overflow-wrap:anywhere}

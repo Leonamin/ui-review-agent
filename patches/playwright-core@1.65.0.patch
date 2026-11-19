@@ -1,0 +1,23 @@
+diff --git a/lib/coreBundle.js b/lib/coreBundle.js
+index 559de664371f8abe23e261b4a1063e97727d9097..d5bae1914b736c21316fa4e9e97849120b9fa772 100644
+--- a/lib/coreBundle.js
++++ b/lib/coreBundle.js
+@@ -37957,7 +37957,17 @@ var init_crNetworkManager = __esm({
+           frame = this._page.frameManager.frameAttached(requestWillBeSentEvent.frameId, null);
+         }
+         const isInterceptedOptionsPreflight = !!requestPausedEvent && requestPausedEvent.request.method === "OPTIONS" && requestWillBeSentEvent.initiator.type === "preflight";
+-        if (isInterceptedOptionsPreflight && (this._page || this._serviceWorker).needsRequestInterception()) {
++        // UI_REVIEW_NATIVE_CORS_V1: route actual Chromium preflights for opted-in review contexts.
++        const reviewCorsContext = (this._page || this._serviceWorker).browserContext._options.baseURL;
++        const useNativeSupabaseReviewCors = reviewCorsContext === "https://ui-review-supabase-cors.invalid";
++        const useNativeReviewCors = useNativeSupabaseReviewCors || reviewCorsContext === "https://ui-review-native-cors.invalid";
++        const preflightMethod = isInterceptedOptionsPreflight && Object.entries(requestPausedEvent.request.headers).find(([name]) => name.toLowerCase() === "access-control-request-method")?.[1];
++        const useNativeReviewPreflight = useNativeReviewCors && isInterceptedOptionsPreflight && (useNativeSupabaseReviewCors || !["GET", "HEAD", "OPTIONS"].includes(preflightMethod));
++        if (useNativeReviewCors && requestPausedEvent && ((redirectedFrom || !frame && !this._serviceWorker) && (useNativeReviewPreflight || !["GET", "HEAD", "OPTIONS"].includes(requestPausedEvent.request.method)) || useNativeReviewPreflight && !preflightMethod)) {
++          requestPausedSessionInfo.session._sendMayFail("Fetch.failRequest", { requestId: requestPausedEvent.requestId, errorReason: "BlockedByClient" });
++          return;
++        }
++        if (isInterceptedOptionsPreflight && !useNativeReviewPreflight && (this._page || this._serviceWorker).needsRequestInterception()) {
+           const requestHeaders = requestPausedEvent.request.headers;
+           const responseHeaders = [
+             { name: "Access-Control-Allow-Origin", value: requestHeaders["Origin"] || "*" },

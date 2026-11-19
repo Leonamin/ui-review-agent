@@ -1,0 +1,53 @@
+{
+  "name": "ai-usability-inspector",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Evidence-based URL usability inspection",
+  "scripts": {
+    "inspect": "tsx src/cli.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "experiment": "tsx src/experiment-cli.ts",
+    "benchmark": "tsx src/benchmark-cli.ts",
+    "viewer": "pnpm run viewer:build && tsx viewer/server/main.ts",
+    "viewer:build": "vite build --config viewer/vite.config.ts",
+    "viewer:typecheck": "tsc -p viewer/tsconfig.json",
+    "storybook": "storybook dev -p 6006 -h 127.0.0.1 -c viewer/.storybook --no-open",
+    "storybook:build": "storybook build -c viewer/.storybook -o viewer/storybook-static",
+    "mcp": "tsx src/request-mcp-cli.ts",
+    "skill:install": "node scripts/skills/install.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:viewer": "tsx viewer/server/main.ts --dev",
+    "remote:install": "node scripts/remote-install.mjs"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "^4.11.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@onparallel/write-excel-file-data-validation": "^1.0.2",
+    "lucide-react": "^0.468.0",
+    "playwright": "^1.58.2",
+    "radix-ui": "^1.8.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sharp": "^0.35.5",
+    "write-excel-file": "^4.1.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@storybook/react-vite": "^10.6.7",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "storybook": "^10.6.7",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8"
+  },
+  "packageManager": "pnpm@11.10.0"
+}

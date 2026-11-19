@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Review"
+  short_description: "셀프호스팅 UI 리뷰 작업공간 접수, 상태 확인 및 재검토"
+  default_prompt: "$ui-review로 이 화면들을 같은 프로젝트에서 화면별로 검토해줘."

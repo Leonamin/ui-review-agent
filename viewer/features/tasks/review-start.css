@@ -1,0 +1,53 @@
+.review-start {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius);
+  background: var(--gc-surface);
+}
+.review-start h2 { font-size: 16px; }
+.review-start p { margin: 0; font-size: 13px; }
+.review-start .review-redirect-locations { margin: 0; }
+.review-start-action-row, .review-start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.review-start-action-row {
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--gc-warning-soft);
+}
+.review-start-error {
+  color: var(--gc-danger);
+  overflow-wrap: anywhere;
+}
+.review-credentials-dialog { max-width: 440px; }
+.review-credentials-dialog header p { overflow-wrap: anywhere; }
+.review-credentials-form, .review-credentials-fields {
+  display: grid;
+  gap: 12px;
+}
+.review-credentials-form fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.review-credentials-form legend { margin-bottom: 6px; font-weight: 600; }
+.review-credentials-form fieldset label { display: flex; align-items: center; gap: 5px; }
+.review-credentials-form > label, .review-credentials-fields label {
+  display: grid;
+  gap: 5px;
+  font-weight: 600;
+}
+.review-credentials-form .gc-input { width: 100%; }
+
+.review-start-scope { overflow-wrap: anywhere; }
+.review-credentials-dialog footer { flex-wrap: wrap; }

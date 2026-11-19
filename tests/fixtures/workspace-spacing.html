@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>작업공간 간격 재현</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f8f8fa; color: #18181b; font: 16px/1.5 system-ui, sans-serif; }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 26px; }
+    h2 { font-size: 18px; }
+    .workspace { display: grid; gap: 16px; max-width: 1060px; margin: auto; padding: 24px 16px; }
+    .workspace-detail-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .workspace-panel { border: 1px solid #d1d1d6; border-radius: 10px; background: white; }
+    .workspace-capture { overflow: hidden; }
+    .workspace-canvas-header { display: grid; gap: 12px; padding: 16px; }
+    .workspace-actions, .segmented-control { display: flex; width: fit-content; }
+    button { min-height: 36px; padding: 6px 10px; border: 1px solid #73737e; border-radius: 6px; background: white; color: #18181b; font: inherit; white-space: nowrap; }
+    .capture-art { display: block; width: 100%; height: auto; }
+    .workspace-timeline { display: grid; gap: 8px; }
+    .workspace-timeline button { width: fit-content; }
+    .workspace-comparison { display: grid; gap: 12px; padding: 16px; }
+    .segmented-control > button:first-child { border-radius: 6px 0 0 6px; }
+    .segmented-control > button:last-child { border-radius: 0 6px 6px 0; }
+    .segmented-control > button[aria-pressed="true"] { background: #27272a; color: white; }
+    .is-repaired .workspace-actions { gap: 12px; }
+    .is-repaired .workspace-timeline { padding: 16px; }
+    @media (max-width: 620px) {
+      .workspace-detail-grid { grid-template-columns: minmax(0, 1fr); }
+      .workspace-actions { flex-direction: column; }
+    }
+  </style>
+  <script>if (new URLSearchParams(location.search).has('repaired')) document.documentElement.classList.add('is-repaired');</script>
+</head>
+<body>
+  <main class="workspace">
+    <h1>관리자 예약 관리 작업공간</h1>
+    <div class="workspace-detail-grid">
+      <section class="workspace-panel workspace-capture">
+        <header class="workspace-canvas-header">
+          <h2>현재 캡처</h2>
+          <div class="workspace-actions">
+            <button id="capture-view" type="button" aria-haspopup="dialog">크게 보기</button>
+            <button id="region-select" type="button" aria-pressed="false">영역 선택</button>
+          </div>
+        </header>
+        <svg class="capture-art" role="img" aria-label="예약 관리 캡처 예시" viewBox="0 0 560 180">
+          <rect width="560" height="180" fill="#e9eef7"/>
+          <rect x="18" y="18" width="135" height="144" rx="8" fill="#fff"/>
+          <rect x="169" y="18" width="373" height="33" rx="8" fill="#fff"/>
+          <rect x="169" y="67" width="177" height="95" rx="8" fill="#fff"/>
+          <rect x="362" y="67" width="180" height="95" rx="8" fill="#fff"/>
+        </svg>
+      </section>
+      <section id="history-panel" class="workspace-panel workspace-timeline">
+        <h2 id="history-title">요청과 검증 내역</h2>
+        <p>저장된 화면의 결과를 확인합니다.</p>
+        <button type="button">이 기록 보기</button>
+      </section>
+    </div>
+    <section class="workspace-panel workspace-comparison">
+      <h2>화면 비교</h2>
+      <div class="segmented-control" role="group" aria-label="비교 기준">
+        <button type="button" aria-pressed="true">조작 전후</button><button type="button" aria-pressed="false">이전과 현재</button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

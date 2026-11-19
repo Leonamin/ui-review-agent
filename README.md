@@ -23,7 +23,7 @@ Linux에서 Chromium 실행에 필요한 시스템 라이브러리가 없다면 
 
 대시보드의 **설정**에서 평가자를 선택합니다. 처음 쓴다면 OpenAI 호환 API가 가장 간단합니다. 기본 평가자를 **OpenAI Compatible API**로 고르고 **API 기본 URL**(예: `https://api.openai.com/v1`), **API 키**, 이미지 입력을 지원하는 **모델 ID**를 입력해 저장하세요. API 형식은 기본값인 Chat Completions로 시작할 수 있습니다. 입력한 키는 서버의 데이터 디렉터리에 평문 파일로 저장되므로 [셀프호스팅 안내](docs/self-hosting.md#대시보드-열기와-평가자-설정)를 확인하세요. Codex CLI, Claude Code CLI, Antigravity CLI를 쓰려면 서버 실행 계정에 설치하고 로그인해야 합니다.
 
-- [셀프호스팅 설치와 Codex 스킬 연결](docs/self-hosting.md)
+- [셀프호스팅 설치와 Codex·Claude Code 연결](docs/self-hosting.md)
 - [CLI 검사와 로컬 개발](docs/cli.md)
 - [모델 벤치마크와 채점 시트](docs/cli.md#모델-벤치마크)
 - [엔진 동작 구조도](docs/diagrams/README.md)

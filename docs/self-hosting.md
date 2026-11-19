@@ -85,6 +85,23 @@ codex mcp add ui-review -- "$(command -v node)" \
   "$PWD/dist/request-mcp-cli.js" --service http://127.0.0.1:4317
 ```
 
+### 같은 컴퓨터의 Claude Code 연결
+
+서버와 Claude Code가 같은 컴퓨터에 있으면 같은 MCP를 Claude Code에도 등록할 수 있습니다. 소스 디렉터리에서 실행합니다.
+
+```sh
+pnpm run build
+claude mcp add ui-review -- "$(command -v node)" \
+  "$PWD/dist/request-mcp-cli.js" --service http://127.0.0.1:4317
+pnpm run skill:install --target "$HOME/.claude/skills"
+```
+
+`claude mcp add`는 기본적으로 현재 프로젝트에서만 쓰는 설정을 만듭니다. 모든 프로젝트에서 쓰려면 `--scope user`를 추가하세요. 스킬 설치기는 기존 `ui-review` 폴더를 덮어쓰지 않습니다. 설치 후 Claude Code를 새로 시작하면 `ui-review` 스킬을 사용할 수 있습니다.
+
+연결 상태는 새 세션에서 `ui-review`의 `review_service_status` 도구를 호출해 확인합니다. 응답의 `status`가 `ready`여야 합니다.
+
+원격 서버 연결용 설치기(`remote:install`)는 Codex 설정만 만들며 Claude Code는 지원하지 않습니다.
+
 ## 연결 확인
 
 1. 새 Codex 세션에서 `$ui-review`로 연결 상태를 확인합니다. MCP 도구 `review_service_status` 응답의 `status`가 `ready`여야 합니다.

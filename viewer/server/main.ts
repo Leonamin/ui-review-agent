@@ -13,7 +13,11 @@ const { values } = parseArgs({ options: {
     dev: { type: 'boolean', default: false },
     'public-origin': { type: 'string' },
     'review-concurrency': { type: 'string', default: '2' },
+    'workspace-state-version': { type: 'string', default: '1' },
 } });
+const workspaceStateVersion = values['workspace-state-version'];
+if (workspaceStateVersion !== '1' && workspaceStateVersion !== '2')
+    throw new Error('workspace-state-version must be 1 or 2');
 const port = Number(values.port);
 if (!Number.isInteger(port) || port < 1024 || port > 65535)
     throw new Error('port must be 1024..65535');
@@ -22,7 +26,10 @@ if (host !== 'localhost' && !isIP(host))
     throw new Error('host must be an IP address or localhost');
 const publicOrigin = values['public-origin'] === undefined ? undefined : parsePublicOrigin(values['public-origin']);
 const runsRoot = resolve(values.runs!);
-const reviews = new ReviewService(runsRoot, { maxConcurrentReviews: Number(values['review-concurrency']) });
+const reviews = new ReviewService(runsRoot, {
+    maxConcurrentReviews: Number(values['review-concurrency']),
+    workspaceStateVersion: workspaceStateVersion === '2' ? 2 : undefined,
+});
 await reviews.start();
 let vite: import('vite').ViteDevServer | undefined;
 const server = createViewerServer(new ReportRepository(runsRoot), fileURLToPath(new URL('../dist/', import.meta.url)), reviews, values.dev ? (req, res, next) => vite!.middlewares(req, res, next) : undefined, publicOrigin);

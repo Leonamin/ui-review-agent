@@ -63,7 +63,7 @@ interface V1Submission {
  taskId: string;
  revisionId: string;
 }
-interface V1State {
+export interface LegacyReviewState {
  version: 1;
  workspaceData?: WorkspaceState;
  tasks: ReviewTask[];
@@ -113,8 +113,8 @@ export interface WorkspaceStateCandidate {
  legacySubmissions: Record<string, V1Submission & {requestId?: string}>;
  assets: ReviewAsset[];
  focusedReviews: FocusedReview[];
- focusedSubmissions?: V1State['focusedSubmissions'];
- compatibleConnections?: V1State['compatibleConnections'];
+ focusedSubmissions?: LegacyReviewState['focusedSubmissions'];
+ compatibleConnections?: LegacyReviewState['compatibleConnections'];
 }
 interface ActiveRequest {
  requestId: string;
@@ -161,7 +161,7 @@ function attemptReportPath(attempt: ReviewAttempt) {
 function attemptIdentity(attempts: ReviewAttempt[]) {
  return attempts.map(({attemptId, status}) => [attemptId, status]);
 }
-function v1AttemptInventory(state: V1State) {
+function v1AttemptInventory(state: LegacyReviewState) {
  return [...state.tasks].reverse().flatMap(task =>
   task.revisions.flatMap(revision => revision.targets.map(target => ({
    origin: {taskId: task.taskId, revisionId: revision.revisionId, targetId: target.targetId},
@@ -178,10 +178,10 @@ function collectActiveAttempts(executions: Iterable<{attempts: ReviewAttempt[]}>
  return activeAttempts;
 }
 
-/** Converts a detached snapshot only. Neither the viewer nor the worker accepts its v2 output yet. */
+/** Converts a detached snapshot without changing the source. */
 export function convertWorkspaceState(value: unknown): {candidate: WorkspaceStateCandidate; summary: MigrationSummary} {
  if (!stateSchema.safeParse(value).success) migrationError('invalid-v1-state');
- const source = value as V1State;
+ const source = value as LegacyReviewState;
  const sourceAttemptInventory = v1AttemptInventory(source);
  const state = structuredClone(source);
  const {requests, ...workspaceMetadata} = state.workspaceData ?? emptyWorkspaceState();

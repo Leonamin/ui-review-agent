@@ -3,7 +3,7 @@ import {hasExplicitRegionRestriction} from './followup.js';
 import {deriveReplayDismissalEvidence} from './replay-dismissal.js';
 import {closeBrowserLeases} from './browser-lease.js';
 import {z} from 'zod';
-import {allWorkspaceTrash,emptyWorkspaceState,isWorkspaceTrashed,migrateWorkspaces,createProject,createWorkspace,forgetLegacyProjectKeys,preserveLegacyPlacements,workspaceDetail,type ProjectTrash,type WorkspaceState,type WorkspaceSupabaseAuthGrant,type WorkspaceTrash} from './workspace-state.js';
+import {allWorkspaceTrash,emptyWorkspaceState,isWorkspaceTrashed,migrateWorkspaces,createProject,createWorkspace,forgetLegacyProjectKeys,preserveLegacyPlacements,workspaceDetail,type ProjectTrash,type WorkspaceSupabaseAuthGrant,type WorkspaceTrash} from './workspace-state.js';
 import {projectDeletionSchema,projectInputSchema,projectPostHostsSchema,projectSupabaseAuthBindingsSchema,projectSupabaseAuthSettingsSchema,workspaceInputSchema,workspaceInitialSchema,workspaceFollowupSchema,type ProjectDeletionPreview,type ProjectDeletionResult,type ReportWorkspaceContext,type ReviewProject,type ReviewWorkspace,type TrashedProject,type TrashedWorkspace,type WorkspaceRequest,type WorkspaceSource} from './workspace-contract.js';
 import {attachedReportFiles, collectWorkspaceTrash, managedAttemptFiles, removeTaskAttempts, removeWorkspaceFile, usesTrashedHistory, WORKSPACE_RETENTION_MS} from './workspace-trash.js';
 import { focusedSubmissionSchema, type FocusSource, type FocusedReview } from './focused-review-contract.js';
@@ -20,27 +20,12 @@ import { initialReviewSettings, publicReviewSettings, reviewSettingsSchema, revi
 import { DEFAULT_REVIEW_TIMEOUT_SECONDS, defaultStandardEvaluationTimeouts, deriveStandardReviewTimeouts } from './evaluation-budget.js';
 import { runWithOpenAiCompatible } from './review-settings-runtime.js';
 import type { RunSpec } from './types.js';
+import { convertWorkspaceState, type LegacyReviewState } from './workspace-state-converter.js';
+import { readWorkspaceStateCandidate } from './workspace-state-runtime.js';
 import {normalizeProjectPostHost,PROJECT_POST_HOST_LIMIT} from './post-host-policy.js';
 export class ReviewServiceError extends Error {
     constructor(public status: number, message: string) { super(message); }
 }
-type State = {
-    version: 1;
-    workspaceData?: WorkspaceState;
-    compatibleConnections?: Record<string, string>;
-    focusedReviews?: FocusedReview[];
-    focusedSubmissions?: Record<string, {
-        hash: string;
-        focusedReviewId: string;
-    }>;
-    tasks: ReviewTask[];
-    assets: ReviewAsset[];
-    submissions: Record<string, {
-        hash: string;
-        taskId: string;
-        revisionId: string;
-    }>;
-};
 type TrashPurgeUnit = {id: string; projectId?: string; workspaceIds: string[]; entries: WorkspaceTrash[]};
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
 const now = () => new Date().toISOString();
@@ -52,7 +37,7 @@ const changedReviewScopeMessage = '다른 화면에는 기존 선택 영역을 �
 const hasRestrictedFollowupScope = (request: WorkspaceRequest) => request.kind === 'followup' &&
     (request.scopeMode === 'selected-only' || hasExplicitRegionRestriction(request.instruction));
 export class ReviewService {
-    private state: State = { version: 1, tasks: [], assets: [], submissions: {} };
+    private state: LegacyReviewState = { version: 1, tasks: [], assets: [], submissions: {} };
     private settings: StoredReviewSettings = initialReviewSettings;
     private chain: Promise<unknown> = Promise.resolve();
     private workers = new Set<Promise<void>>();
@@ -71,6 +56,7 @@ export class ReviewService {
         inspectFocused?: typeof inspectFocused;
         maxConcurrentReviews?: number;
         workspaceClock?: () => number;
+        workspaceStateVersion?: 2;
     } = {}) {
         this.maxConcurrentReviews = dependencies.maxConcurrentReviews ?? 2;
         if (!Number.isInteger(this.maxConcurrentReviews) || this.maxConcurrentReviews < 1 || this.maxConcurrentReviews > 8)
@@ -92,7 +78,13 @@ export class ReviewService {
         this.chain = p.catch(() => { });
         return p;
     }
-    private async save() { const path = resolve(this.stateRoot, 'state.json'), tmp = path + '.' + randomUUID() + '.tmp'; await writeFile(tmp, JSON.stringify(this.state), { mode: 0o600 }); await rename(tmp, path); }
+    private async save() {
+        const path = resolve(this.stateRoot, 'state.json');
+        const tmp = path + '.' + randomUUID() + '.tmp';
+        const snapshot = this.dependencies.workspaceStateVersion === 2 ? convertWorkspaceState(this.state).candidate : this.state;
+        await writeFile(tmp, JSON.stringify(snapshot), { mode: 0o600 });
+        await rename(tmp, path);
+    }
     async getSettings() { await this.chain; this.assertStarted(); return copy(publicReviewSettings(this.settings)); }
     async updateSettings(input: unknown) {
         const parsed = reviewSettingsUpdateSchema.safeParse(input);
@@ -240,12 +232,17 @@ export class ReviewService {
                     throw new Error('저장된 리뷰 설정을 읽을 수 없습니다.');
             }
             try {
-                this.state = JSON.parse(await readFile(resolve(this.stateRoot, 'state.json'), 'utf8'));
-                if (this.state.version !== 1 || !Array.isArray(this.state.tasks) || !Array.isArray(this.state.assets) || !this.state.submissions)
-                    throw new Error('Unsupported review state');
+                const snapshot = JSON.parse(await readFile(resolve(this.stateRoot, 'state.json'), 'utf8'));
+                if (this.dependencies.workspaceStateVersion === 2) {
+                    this.state = readWorkspaceStateCandidate(snapshot);
+                } else {
+                    if (snapshot?.version !== 1 || !Array.isArray(snapshot.tasks) || !Array.isArray(snapshot.assets) || !snapshot.submissions)
+                        throw new Error('Unsupported review state');
+                    this.state = snapshot;
+                }
             }
             catch (e) {
-                if ((e as NodeJS.ErrnoException).code !== 'ENOENT')
+                if ((e as NodeJS.ErrnoException).code !== 'ENOENT' || this.dependencies.workspaceStateVersion === 2)
                     throw e;
             }
             for(const project of this.workspaceState.projects){

@@ -12,6 +12,7 @@
     "test": "tsx --test tests/*.test.ts",
     "experiment": "tsx src/experiment-cli.ts",
     "benchmark": "tsx src/benchmark-cli.ts",
+    "workspace:migration:dry-run": "tsx src/workspace-state-migration-cli.ts",
     "viewer": "pnpm run viewer:build && tsx viewer/server/main.ts",
     "viewer:build": "vite build --config viewer/vite.config.ts",
     "viewer:typecheck": "tsc -p viewer/tsconfig.json",

@@ -5,8 +5,9 @@ import { MAX_REVIEW_TIMEOUT_SECONDS } from './evaluation-budget.js';
 import { reviewEvaluatorSchema } from './review-settings.js';
 import { themeReviewSchema } from './theme-review.js';
 import { alignmentContractsSchema } from './group-alignment.js';
-import { styleComparisonSchema } from './style-comparison.js';
-import { autoStyleComparisonConfigSchema } from './automatic-style-comparison.js';
+import { canUseReviewCredentials } from './review-credentials.js';
+import { styleComparisonSchema, styleComparisonUrlSchema } from './style-comparison.js';
+import { autoStyleComparisonConfigSchema, automaticStyleUrls, hasDistinctStyleUrls } from './automatic-style-comparison.js';
 export class PolicyError extends Error { constructor(public code:string,message:string){super(message);} }
 export function validateSpec(spec:RunSpec):void {
  if(spec.followup&&((!spec.targetUrl&&!spec.imagePath)||!spec.followup.instruction?.trim()||!spec.followup.workspaceId||!spec.followup.requestId||!Number.isSafeInteger(spec.followup.maxOptions)||spec.followup.maxOptions<1||spec.followup.maxOptions>3||spec.followup.scopeMode!==undefined&&!['selected-only','related-screen'].includes(spec.followup.scopeMode)))throw new PolicyError('invalid-followup','Follow-up requires a source, immutable parent, instruction and one to three representative options.');
@@ -44,12 +45,14 @@ export function validateSpec(spec:RunSpec):void {
   throw new PolicyError('invalid-style-comparison','Choose automatic or selector-based style comparison.');
  if(spec.styleComparison||spec.autoStyleComparison){
   const parsed=spec.styleComparison?styleComparisonSchema.safeParse(spec.styleComparison):autoStyleComparisonConfigSchema.safeParse(spec.autoStyleComparison);
-  if(!parsed.success||!hasUrl||spec.mode!=='quick'||spec.evaluator!=='rules-only'||spec.limits.maxObservations<2||
-   spec.followup||spec.themeReview||spec.alignmentContracts?.length||spec.stateDiscovery||spec.shouldWaitForLogin||spec.shouldVerify||post||spec.hasMutationPermission)
-   throw new PolicyError('invalid-style-comparison','Style comparison requires a read-only, quick rules-only URL review with at least two observations.');
-  const reference=new URL(spec.targetUrl!),comparison=new URL(parsed.data.comparisonUrl);
-  if(reference.origin!==comparison.origin||reference.href===comparison.href)
-   throw new PolicyError('invalid-style-comparison','Specify a distinct comparison URL on the same origin as the reference.');
+  const comparisonUrls=parsed.success?automaticStyleUrls(parsed.data):[];
+  if(!parsed.success||!hasUrl||spec.mode!=='quick'||spec.evaluator!=='rules-only'||spec.limits.maxObservations<1+comparisonUrls.length||
+   spec.followup||spec.themeReview||spec.alignmentContracts?.length||spec.stateDiscovery||(spec.shouldWaitForLogin&&!spec.autoStyleComparison)||spec.shouldVerify||post||spec.hasMutationPermission)
+   throw new PolicyError('invalid-style-comparison','Style comparison requires a read-only, quick rules-only URL review with an observation for each screen.');
+  if(spec.shouldWaitForLogin&&!canUseReviewCredentials(spec.targetUrl!))
+   throw new PolicyError('invalid-auth-mode','Manual style login requires HTTPS or a loopback URL.');
+  if(!styleComparisonUrlSchema.safeParse(spec.targetUrl).success||!hasDistinctStyleUrls(spec.targetUrl!,comparisonUrls))
+   throw new PolicyError('invalid-style-comparison','Specify distinct comparison URLs on the same origin as the reference.');
  }
  if(spec.mode==='quick' && (spec.allowedActions.length>0||spec.limits.maxActions!==0)) throw new PolicyError('scope-denied','Quick mode cannot execute actions.');
  if(spec.mode==='interaction' && !spec.allowedActions.length) throw new PolicyError('scope-denied','Interaction requires an explicit action allowlist.');

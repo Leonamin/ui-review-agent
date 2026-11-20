@@ -2,7 +2,26 @@ import type {Page} from 'playwright';
 import {z} from 'zod';
 import {styleBoundsSchema,styleComparisonUrlSchema,stylePropertySchema,styleValueSchema} from './style-comparison.js';
 
-export const autoStyleComparisonConfigSchema=z.object({comparisonUrl:styleComparisonUrlSchema}).strict();
+export const MAX_STYLE_COMPARISON_TARGETS=4;
+export const styleComparisonTargetsSchema=z.array(styleComparisonUrlSchema).min(2).max(MAX_STYLE_COMPARISON_TARGETS);
+export const autoStyleComparisonConfigSchema=z.union([
+ z.object({comparisonUrl:styleComparisonUrlSchema}).strict(),
+ z.object({comparisonUrls:styleComparisonTargetsSchema}).strict(),
+]);
+export function automaticStyleUrls(config:AutoStyleComparisonConfig):string[]{
+ return 'comparisonUrls' in config?config.comparisonUrls:[config.comparisonUrl];
+}
+export function hasDistinctStyleUrls(referenceUrl:string,comparisonUrls:string[]):boolean{
+ const reference=URL.parse(referenceUrl);
+ if(!reference)return false;
+ const seen=new Set([reference.href]);
+ return comparisonUrls.every(value=>{
+  const comparison=URL.parse(value);
+  if(!comparison||comparison.origin!==reference.origin||seen.has(comparison.href))return false;
+  seen.add(comparison.href);
+  return true;
+ });
+}
 export type AutoStyleComparisonConfig=z.infer<typeof autoStyleComparisonConfigSchema>;
 const role=z.enum(['searchbox','textbox','combobox','button','checkbox','radio','switch','tab','link','navigation','complementary']);
 const maxElements=48;
@@ -29,6 +48,10 @@ export const autoStyleComparisonReportSchema=z.object({
  coverage:z.object({matched:count,changed:count,unmatched:count,ambiguous:count,unmeasured:count}),
 });
 export type AutoStyleComparisonReport=z.infer<typeof autoStyleComparisonReportSchema>;
+export const autoStyleComparisonsSchema=z.array(autoStyleComparisonReportSchema).min(2).max(MAX_STYLE_COMPARISON_TARGETS);
+export function recordedAutomaticStyles(checks:{autoStyleComparison?:AutoStyleComparisonReport;autoStyleComparisons?:AutoStyleComparisonReport[]}|undefined){
+ return checks?.autoStyleComparisons??(checks?.autoStyleComparison?[checks.autoStyleComparison]:[]);
+}
 type StyleProperty=z.infer<typeof stylePropertySchema>;
 type AutoStyleRole=z.infer<typeof role>;
 type Screen=z.infer<typeof screen>;

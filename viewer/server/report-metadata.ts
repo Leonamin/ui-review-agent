@@ -1,6 +1,6 @@
 import {safeUrl} from '../../src/policy.js';
 import {themeStatusLabel} from '../../src/check-presentation.js';
-import {autoStyleComparisonReportSchema} from '../../src/automatic-style-comparison.js';
+import {autoStyleComparisonReportSchema,autoStyleComparisonsSchema} from '../../src/automatic-style-comparison.js';
 import {styleComparisonReportSchema} from '../../src/style-comparison.js';
 import {z} from 'zod';
 import type {CaptureContext,ReportSummary} from '../features/reports/types.js';
@@ -127,10 +127,12 @@ export function recordedCapture(value:unknown):CaptureContext|undefined {
   const spacing=spacingChecks.safeParse(source?.spacing);
   const styleComparison=styleComparisonReportSchema.safeParse(source?.styleComparison);
   const autoStyleComparison=autoStyleComparisonReportSchema.safeParse(source?.autoStyleComparison);
+  const autoStyleComparisons=autoStyleComparisonsSchema.safeParse(source?.autoStyleComparisons);
   capture.deterministicChecks={...checks.data,
    ...(spacing.success?{spacing:spacing.data}:{}),
    ...(styleComparison.success?{styleComparison:styleComparison.data}:{}),
-   ...(autoStyleComparison.success?{autoStyleComparison:autoStyleComparison.data}:{})};
+   ...(autoStyleComparison.success?{autoStyleComparison:autoStyleComparison.data}:{}),
+   ...(autoStyleComparisons.success?{autoStyleComparisons:autoStyleComparisons.data}:{})};
  }
  return Object.keys(capture).length?capture:undefined;
 }

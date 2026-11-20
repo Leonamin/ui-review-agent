@@ -1017,7 +1017,7 @@ export class ReviewService {
         },undefined,{workspaceId:id,kind:'initial',submissionId:input.submissionId,instruction:workspace.goal,requestFingerprint});
         return {workspace:copy(this.requireWorkspace(id)),request:copy(this.workspaceState.requests.find(r=>r.revisionId===result.revision.revisionId)!)};
     }
-    async submitWorkspaceFollowup(id:string,raw:unknown,loadSource:(reportId:string,imageId?:string)=>Promise<WorkspaceSource&{imageBytes?:Buffer}>){const input=workspaceFollowupSchema.parse(raw);await this.chain;const requestFingerprint=hash(JSON.stringify({workspaceId:id,kind:'followup',input})),duplicate=this.duplicateWorkspaceRequest(input.submissionId,requestFingerprint);if(duplicate)return{workspace:copy(this.requireWorkspace(id)),request:copy(duplicate)};const workspace=this.requireWorkspace(id),membership=this.workspaceState.memberships.find(m=>m.reportId===input.parentReportId);if(membership?.workspaceId!==id)throw new ReviewServiceError(409,'현재 작업공간에 속한 보고서를 기준으로 요청하세요.');const owner=this.owningReport(input.parentReportId);if(!owner)throw new ReviewServiceError(400,'원본 전체 URL을 확인할 수 없습니다. URL로 첫 검토를 접수하세요.');if(owner.target.kind==='url'&&owner.target.comparisonUrl)throw new ReviewServiceError(400,'두 화면을 다시 검사하려면 검토 탭에서 스타일 비교를 시작하세요.');if(input.shouldWaitForStart&&owner.target.kind!=='url')throw new ReviewServiceError(400,'URL 검토에서만 실행 전 로그인 정보를 선택할 수 있습니다.');const {imageBytes,...source}=await loadSource(input.parentReportId,input.imageId);if(owner.target.kind==='url'){source.targetUrl=owner.target.url;source.viewport={...(owner.target.viewport??{width:1440,height:900}),deviceScaleFactor:1};}if(input.sourceSha256&&source.image?.sha256!==input.sourceSha256)throw new ReviewServiceError(409,'원본 캡처가 변경되었습니다.');if(input.region){if(source.image?.sha256!==input.sourceSha256)throw new ReviewServiceError(409,'원본 캡처가 변경되었습니다.');validateFocusRegion(input.region,source.image!);}
+    async submitWorkspaceFollowup(id:string,raw:unknown,loadSource:(reportId:string,imageId?:string)=>Promise<WorkspaceSource&{imageBytes?:Buffer}>){const input=workspaceFollowupSchema.parse(raw);await this.chain;const requestFingerprint=hash(JSON.stringify({workspaceId:id,kind:'followup',input})),duplicate=this.duplicateWorkspaceRequest(input.submissionId,requestFingerprint);if(duplicate)return{workspace:copy(this.requireWorkspace(id)),request:copy(duplicate)};const workspace=this.requireWorkspace(id),membership=this.workspaceState.memberships.find(m=>m.reportId===input.parentReportId);if(membership?.workspaceId!==id)throw new ReviewServiceError(409,'현재 작업공간에 속한 보고서를 기준으로 요청하세요.');const owner=this.owningReport(input.parentReportId);if(!owner)throw new ReviewServiceError(400,'원본 전체 URL을 확인할 수 없습니다. URL로 첫 검토를 접수하세요.');if(owner.target.kind==='url'&&(owner.target.comparisonUrl||owner.target.comparisonUrls))throw new ReviewServiceError(400,'화면 스타일을 다시 검사하려면 검토 탭에서 스타일 비교를 시작하세요.');if(input.shouldWaitForStart&&owner.target.kind!=='url')throw new ReviewServiceError(400,'URL 검토에서만 실행 전 로그인 정보를 선택할 수 있습니다.');const {imageBytes,...source}=await loadSource(input.parentReportId,input.imageId);if(owner.target.kind==='url'){source.targetUrl=owner.target.url;source.viewport={...(owner.target.viewport??{width:1440,height:900}),deviceScaleFactor:1};}if(input.sourceSha256&&source.image?.sha256!==input.sourceSha256)throw new ReviewServiceError(409,'원본 캡처가 변경되었습니다.');if(input.region){if(source.image?.sha256!==input.sourceSha256)throw new ReviewServiceError(409,'원본 캡처가 변경되었습니다.');validateFocusRegion(input.region,source.image!);}
       const result=await this.submit({submissionId:'workspace:'+input.submissionId,title:owner.task.title,purpose:input.instruction,project:owner.task.project,externalLinks:owner.task.externalLinks,targets:[owner.target.kind==='url'?{kind:'url',name:owner.target.name,url:owner.target.url,viewport:owner.target.viewport,themeReview:owner.target.themeReview,alignmentContracts:owner.target.alignmentContracts,targetId:owner.target.targetId,shouldWaitForStart:input.shouldWaitForStart}:{kind:'image',name:owner.target.name,assetId:owner.target.assetId,targetId:owner.target.targetId}],options:input.options},owner.task.taskId,{workspaceId:id,kind:'followup',submissionId:input.submissionId,instruction:input.instruction,parentReportId:input.parentReportId,source,sourceImageBytes:imageBytes,region:input.region,scopeMode:input.scopeMode,maxOptions:input.maxOptions,requestFingerprint});return{workspace:copy(this.requireWorkspace(id)),request:copy(this.workspaceState.requests.find(r=>r.revisionId===result.revision.revisionId)!)};
     }
     async submitWorkspaceImage(id:string,raw:unknown){const input=z.object({submissionId:z.string().trim().min(1).max(200),assetId:reviewIdSchema,comment:z.string().trim().min(1).max(4000)}).strict().parse(raw);await this.chain;const previous=this.requireRequest(id),workspace=this.requireWorkspace(previous.workspaceId);const requestFingerprint=hash(JSON.stringify({workspaceId:workspace.workspaceId,kind:'image-handoff',parentRequestId:id,input})),duplicate=this.duplicateWorkspaceRequest(input.submissionId,requestFingerprint);if(duplicate)return{request:copy(duplicate)};const result=await this.submit({submissionId:'workspace:'+input.submissionId,title:this.findTask(previous.taskId).title,purpose:input.comment,targets:[{kind:'image',name:workspace.name,assetId:input.assetId}],options:{}},previous.taskId,{workspaceId:workspace.workspaceId,kind:'image-handoff',submissionId:input.submissionId,instruction:input.comment,parentReportId:previous.parentReportId,parentRequestId:id,source:previous.source,requestFingerprint});return{request:copy(this.workspaceState.requests.find(r=>r.revisionId===result.revision.revisionId)!)};}
@@ -1132,7 +1132,7 @@ export class ReviewService {
             else if (input.targets.some(t => t.targetId))
                 throw new ReviewServiceError(400, '새 작업의 대상 ID는 서비스에서 생성합니다.');
             const firstTarget = input.targets[0];
-            const isStyleComparison = firstTarget.kind === 'url' && Boolean(firstTarget.comparisonUrl);
+            const isStyleComparison = firstTarget.kind === 'url' && Boolean(firstTarget.comparisonUrl||firstTarget.comparisonUrls);
             if (visiblePrevious?.revisions.at(-1)?.options.evaluator === 'rules-only' && !isStyleComparison)
                 throw new ReviewServiceError(400, '스타일 비교를 다시 실행하려면 기준과 비교 화면 URL을 함께 지정하세요.');
             const options: ReviewRevision['options'] = isStyleComparison
@@ -1145,7 +1145,7 @@ export class ReviewService {
                 if (workspaceInput.kind === 'followup' && this.workspaceState.memberships.find(m=>m.reportId===workspaceInput.parentReportId)?.workspaceId !== workspace.workspaceId)
                     throw new ReviewServiceError(409,'부모 보고서 소속이 변경되었습니다. 새로고침하세요.');
                 const priorTail = this.workspaceState.requests.findLast(request => request.workspaceId === workspace.workspaceId);
-                // A comparison still takes its place in the queue, but its two captures cannot become a live replay base.
+                // Style comparisons join the queue without becoming live replay bases.
                 const replayBase = workspaceInput.kind === 'followup' && priorTail?.options.evaluator === 'rules-only'
                     ? this.workspaceState.requests.findLast(request => request.workspaceId === workspace.workspaceId &&
                         request.options.evaluator !== 'rules-only' && (firstTarget.kind !== 'url' || request.targetUrl === firstTarget.url))
@@ -1156,6 +1156,7 @@ export class ReviewService {
                     parentRequestId: workspaceInput.parentRequestId, instruction: workspaceInput.instruction,
                     targetUrl: firstTarget.kind === 'url' ? firstTarget.url : undefined,
                     ...(firstTarget.kind === 'url' && firstTarget.comparisonUrl ? { comparisonUrl: firstTarget.comparisonUrl } : {}),
+                    ...(firstTarget.kind === 'url' && firstTarget.comparisonUrls ? { comparisonUrls: firstTarget.comparisonUrls } : {}),
                     source: workspaceInput.source, region: workspaceInput.region, scopeMode: workspaceInput.scopeMode,
                     maxOptions: workspaceInput.maxOptions ?? 1, executionBaseRequestId: replayBase?.requestId,
                     ...(priorTail && priorTail !== replayBase ? { queuePredecessorRequestId: priorTail.requestId } : {}),
@@ -1174,7 +1175,7 @@ export class ReviewService {
                 revision.workspaceRequestId = request.requestId;
                 this.workspaceState.requests.push(request);
                 const target=revision.targets[0],project=this.workspaceState.projects.find(p=>p.projectId===workspace.projectId);
-                if (target.kind === 'url' && !target.comparisonUrl && request.kind !== 'image-handoff' && project) {
+                if (target.kind === 'url' && !target.comparisonUrl && !target.comparisonUrls && request.kind !== 'image-handoff' && project) {
                     const url = new URL(target.url);
                     if (url.protocol === 'https:' && project.postAllowedHosts.length) {
                         (this.workspaceState.postGrants ??= {})[request.requestId] = {
@@ -1519,7 +1520,7 @@ export class ReviewService {
             });
             if (!next)
                 return;
-            const shouldDetectRedirectedLogin = next.target.kind === 'url' && !next.target.comparisonUrl && !next.target.shouldWaitForStart &&
+            const shouldDetectRedirectedLogin = next.target.kind === 'url' && !next.target.comparisonUrl && !next.target.comparisonUrls && !next.target.shouldWaitForStart &&
                 !next.attempt.shouldReviewLoginPage && !next.credentials;
             let result: Partial<ReviewAttempt>;
             let authFailure: string | undefined;
@@ -1535,9 +1536,12 @@ export class ReviewService {
                     if (!asset || hash(await readFile(imagePath)) !== asset.sha256)
                         throw new Error('이미지 해시 검증 실패');
                 }
-                const autoStyleComparison = target.kind === 'url' && target.comparisonUrl ? { comparisonUrl: target.comparisonUrl } : undefined;
+                const autoStyleComparison = target.kind !== 'url' ? undefined
+                    : target.comparisonUrls ? { comparisonUrls: target.comparisonUrls }
+                    : target.comparisonUrl ? { comparisonUrl: target.comparisonUrl } : undefined;
                 const stateDiscovery = target.kind === 'url' && !autoStyleComparison ? copy(revision.options.stateDiscovery??{}) : undefined;
-                const spec: RunSpec = { targetUrl: target.kind === 'url' ? target.url : undefined, imagePath, stateDiscovery, autoStyleComparison, mode: 'quick', purpose: revision.purpose, viewport: { ...(target.kind === 'url' ? target.viewport : undefined) ?? { width: 1440, height: 900 }, deviceScaleFactor: 1 }, allowedActions: [], allowedOrigins: target.kind === 'url' ? [new URL(target.url).origin] : [], hasMutationPermission: false, isHeaded: false, shouldWaitForLogin: false, limits: { maxDurationMs: revision.options.timeoutSeconds * 1000, maxObservations: target.kind === 'url' ? 24 : 3, maxActions: 0, maxToolCalls: target.kind === 'url' ? 40 : 20, maxFindings: 10 }, evaluator: revision.options.evaluator, model: revision.options.model, reasoningEffort: revision.options.reasoningEffort, strategy: 'A', reviewPipeline: revision.options.reviewPipeline, evaluationBudget: revision.options.evaluationBudget };
+                const shouldWaitForLogin = target.kind === 'url' && target.shouldWaitForLogin === true;
+                const spec: RunSpec = { targetUrl: target.kind === 'url' ? target.url : undefined, imagePath, stateDiscovery, autoStyleComparison, mode: 'quick', purpose: revision.purpose, viewport: { ...(target.kind === 'url' ? target.viewport : undefined) ?? { width: 1440, height: 900 }, deviceScaleFactor: 1 }, allowedActions: [], allowedOrigins: target.kind === 'url' ? [new URL(target.url).origin] : [], hasMutationPermission: false, isHeaded: shouldWaitForLogin, shouldWaitForLogin, limits: { maxDurationMs: revision.options.timeoutSeconds * 1000, maxObservations: target.kind === 'url' ? 24 : 3, maxActions: 0, maxToolCalls: target.kind === 'url' ? 40 : 20, maxFindings: 10 }, evaluator: revision.options.evaluator, model: revision.options.model, reasoningEffort: revision.options.reasoningEffort, strategy: 'A', reviewPipeline: revision.options.reviewPipeline, evaluationBudget: revision.options.evaluationBudget };
                 const expectedRedirectedLoginUrl = attempt.shouldReviewLoginPage ? attempt.loginRedirect?.loginUrl : undefined;
                 const {previous, baseAttempt} = this.followupExecutionBase(target.kind === 'url' && !expectedRedirectedLoginUrl ? request : undefined);
                 const isResumingProtectedPage = Boolean(request && next.credentials && this.hasLoginOnlyBaseline(request, baseAttempt));
@@ -1579,7 +1583,7 @@ export class ReviewService {
                     canSend: () => this.isReady && !controller.signal.aborted && this.runningControllers.get(attempt.attemptId) === controller &&
                         this.canUseWorkspaceSupabaseAuth(request.requestId, attempt.attemptId, supabaseGrant, targetOrigin),
                 } : undefined;
-                const execute = () => (this.dependencies.inspect ?? inspect)(spec, this.outputRoot(attempt),{canSendProjectPost,projectSupabaseAuth,shouldDetectRedirectedLogin,expectedRedirectedLoginUrl,...(next.credentials?{credentials:next.credentials}:{}),...(controller?{signal:controller.signal}:{}),...(request?{onProgress:(progress:{phase:string;reason?:string})=>{void this.serial(async()=>{const current=this.requireRequest(request.requestId);current.phase=progress.phase;current.reason=progress.reason;await this.save();}).catch(()=>{});}}:{})});
+                const execute = () => (this.dependencies.inspect ?? inspect)(spec, this.outputRoot(attempt),{canSendProjectPost,projectSupabaseAuth,shouldDetectRedirectedLogin,expectedRedirectedLoginUrl,shouldResumeOnStyleReference:shouldWaitForLogin,...(next.credentials?{credentials:next.credentials}:{}),...(controller?{signal:controller.signal}:{}),...(request?{onProgress:(progress:{phase:string;reason?:string})=>{void this.serial(async()=>{const current=this.requireRequest(request.requestId);current.phase=progress.phase;current.reason=progress.reason;await this.save();}).catch(()=>{});}}:{})});
                 const execution = await (revision.options.evaluator === 'rules-only' ? execute() :
                     this.runEvaluation(revision.revisionId, revision.options.evaluator, execute));
                 if(request&&execution.result.followup){followupResult=execution.result.followup;needsImageHandoff=execution.result.followup.needsImageHandoff;}

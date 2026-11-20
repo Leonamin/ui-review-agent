@@ -4,7 +4,9 @@ export { evaluationBudgetSchema } from './evaluation-budget.js';
 import { reviewEvaluatorSchema, reviewModelSchema, reviewReasoningEffortSchema } from './review-settings.js';
 import { themeReviewSchema } from './theme-review.js';
 import { alignmentContractsSchema } from './group-alignment.js';
+import { canUseReviewCredentials } from './review-credentials.js';
 import { styleComparisonUrlSchema } from './style-comparison.js';
+import { hasDistinctStyleUrls, styleComparisonTargetsSchema } from './automatic-style-comparison.js';
 export { reviewEvaluatorSchema, type ReviewEvaluator } from './review-settings.js';
 export const reviewIdSchema = z.string().uuid();
 const httpUrl = z.string().max(4096).refine(value => { try {
@@ -32,10 +34,12 @@ export const reviewTargetSchema = z.discriminatedUnion('kind', [
         kind: z.literal('url'),
         url: httpUrl,
         comparisonUrl: styleComparisonUrlSchema.optional(),
+        comparisonUrls: styleComparisonTargetsSchema.optional(),
         viewport: z.object({ width: z.number().int().min(320).max(3840), height: z.number().int().min(240).max(2160) }).strict().optional(),
         themeReview: themeReviewSchema.optional(),
         alignmentContracts: alignmentContractsSchema.optional(),
         shouldWaitForStart: z.boolean().optional(),
+        shouldWaitForLogin: z.boolean().optional(),
     }).strict(),
     z.object({ ...common, kind: z.literal('image'), assetId: reviewIdSchema }).strict()
 ]);
@@ -52,13 +56,27 @@ export const reviewSubmissionSchema = z.object({ submissionId: z.string().trim()
     if (options.reviewPipeline === 'observation-ledger' && targets.some(target=>target.kind!=='image'))
         context.addIssue({code:'custom',message:'Observation ledger requires image targets'});
     for (const [index,target] of targets.entries()) {
-        if(target.kind!=='url'||!target.comparisonUrl)continue;
-        const pair=styleComparisonUrlsSchema.safeParse({referenceUrl:target.url,comparisonUrl:target.comparisonUrl});
-        if(!pair.success)for(const issue of pair.error.issues)
-            context.addIssue({code:'custom',path:['targets',index,'comparisonUrl'],message:issue.message});
+        if(target.kind!=='url')continue;
+        if(!(target.comparisonUrl||target.comparisonUrls)){
+            if(target.shouldWaitForLogin)
+                context.addIssue({code:'custom',path:['targets',index,'shouldWaitForLogin'],message:'브라우저에서 직접 로그인은 화면 스타일 비교에서 사용할 수 있습니다.'});
+            continue;
+        }
+        if(target.comparisonUrl&&target.comparisonUrls)
+            context.addIssue({code:'custom',path:['targets',index,'comparisonUrls'],message:'비교 URL 입력 형식을 하나만 사용하세요.'});
+        else if(target.comparisonUrls){
+            if(!styleComparisonUrlSchema.safeParse(target.url).success||!hasDistinctStyleUrls(target.url,target.comparisonUrls))
+                context.addIssue({code:'custom',path:['targets',index,'comparisonUrls'],message:'기준과 비교 화면은 같은 사이트의 서로 다른 URL이어야 합니다.'});
+        }else{
+            const pair=styleComparisonUrlsSchema.safeParse({referenceUrl:target.url,comparisonUrl:target.comparisonUrl});
+            if(!pair.success)for(const issue of pair.error.issues)
+                context.addIssue({code:'custom',path:['targets',index,'comparisonUrl'],message:issue.message});
+        }
+        if(target.shouldWaitForLogin&&!canUseReviewCredentials(target.url))
+            context.addIssue({code:'custom',path:['targets',index,'shouldWaitForLogin'],message:'HTTPS 또는 로컬 테스트 URL에서 직접 로그인할 수 있습니다.'});
         if(targets.length!==1||target.shouldWaitForStart||target.themeReview||target.alignmentContracts||
             options.evaluator||options.model||options.reasoningEffort||options.stateDiscovery||options.evaluationBudget)
-            context.addIssue({code:'custom',path:['targets',index],message:'스타일 비교는 URL 두 개를 한 쌍으로 검사하며 로그인, 다른 검사 설정, AI 평가자를 함께 지정할 수 없습니다.'});
+            context.addIssue({code:'custom',path:['targets',index],message:'스타일 비교에 로그인 정보 입력, 다른 검사 설정, AI 평가자를 함께 지정할 수 없습니다.'});
     }
 });
 export type ReviewSubmission = z.infer<typeof reviewSubmissionSchema>;

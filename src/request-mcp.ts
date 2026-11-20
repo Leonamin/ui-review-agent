@@ -6,6 +6,7 @@ import {basename,isAbsolute} from 'node:path';
 import sharp from 'sharp';
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {z} from 'zod';
+import {hasDistinctStyleUrls,styleComparisonTargetsSchema} from './automatic-style-comparison.js';
 import {reviewIdSchema,styleComparisonUrlsSchema} from './review-contract.js';
 import {focusedSubmissionSchema} from './focused-review-contract.js';
 
@@ -79,12 +80,17 @@ export function createRequestMcp(client=new ReviewServiceClient()):McpServer{
   inputSchema:{workspaceId:reviewIdSchema,...workspaceInitialSchema.shape},
  },({workspaceId,...submission})=>wrap(()=>client.request(`/api/review-workspaces/${workspaceId}/reviews`,submission))());
  server.registerTool('review_compare_styles',{
-  description:'Compare rendered styles across two distinct URLs on the same origin within a selected workspace. Matching controls and style properties are discovered automatically. Share the returned workspace dashboardUrl. Reuse submissionId after uncertain delivery.',
-  inputSchema:{workspaceId:reviewIdSchema,submissionId:workspaceInitialSchema.shape.submissionId,...styleComparisonUrlsSchema.shape},
- },({workspaceId,submissionId,...urls})=>wrap(()=>{
-  const {referenceUrl,comparisonUrl}=styleComparisonUrlsSchema.parse(urls);
+  description:'Compare rendered styles against up to four distinct same-origin URLs in one workspace report. Use comparisonUrl for one target, or comparisonUrls for two to four. Share the returned workspace dashboardUrl. Reuse submissionId after uncertain delivery.',
+  inputSchema:{workspaceId:reviewIdSchema,submissionId:workspaceInitialSchema.shape.submissionId,
+   referenceUrl:styleComparisonUrlsSchema.shape.referenceUrl,comparisonUrl:styleComparisonUrlsSchema.shape.comparisonUrl.optional(),
+   comparisonUrls:styleComparisonTargetsSchema.optional()},
+ },({workspaceId,submissionId,referenceUrl,comparisonUrl,comparisonUrls})=>wrap(()=>{
+  if(Boolean(comparisonUrl)===Boolean(comparisonUrls))throw new Error('Provide comparisonUrl or comparisonUrls.');
+  if(comparisonUrls&&!hasDistinctStyleUrls(referenceUrl,comparisonUrls))
+   throw new Error('기준과 비교 화면은 같은 사이트의 서로 다른 URL이어야 합니다.');
+  if(comparisonUrl)styleComparisonUrlsSchema.parse({referenceUrl,comparisonUrl});
   return client.request(`/api/review-workspaces/${workspaceId}/reviews`,{
-   submissionId,target:{kind:'url',url:referenceUrl,comparisonUrl},
+   submissionId,target:{kind:'url',url:referenceUrl,...(comparisonUrls?{comparisonUrls}:{comparisonUrl})},
   });
  })());
  server.registerTool('review_followup',{description:'Submit a new live browser review from a fixed parent report and optional saved-image region. Set shouldWaitForStart to true to let the user choose optional login information in the dashboard. This calls the model and can perform bounded read-only display interactions; it is not a saved-image answer. Omit model options for current server settings. Reuse submissionId after uncertain delivery.',inputSchema:{workspaceId:reviewIdSchema,submission:workspaceFollowupSchema}},args=>wrap(()=>client.request(`/api/review-workspaces/${args.workspaceId}/requests`,args.submission))());

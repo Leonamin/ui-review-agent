@@ -22,7 +22,7 @@ URL은 서버의 브라우저가 연다. 로컬 이미지 경로는 Codex 컴퓨
 ## 작업공간 검토 접수
 
 - `review_list_projects`, `review_list_workspaces`, `review_get_workspace`로 기존 소속과 검토 목표를 확인한다. 새 프로젝트는 `review_create_project({project:{name,description?}})`, 새 화면은 `review_create_workspace({workspace:{projectId,name,goal}})`로 만든다. 사용자의 검토 목적을 `goal`에 유지한다. URL이 같아도 검토 목적이 다른 화면은 별도 작업공간으로 둔다.
-- 한 변경에 목록·상세·편집 화면이 있으면 같은 프로젝트에서 화면별 작업공간을 선택하거나 만든다. 각 화면을 `review_create_workspace_review({workspaceId,submissionId,target,options?})`로 접수하고, 화면 이름과 각 응답의 `dashboardUrl`을 함께 안내한다.
+- 목록·상세·편집을 각각 독립적으로 검토할 때는 같은 프로젝트에서 화면별 작업공간을 선택하거나 만든다. 각 화면을 `review_create_workspace_review({workspaceId,submissionId,target,options?})`로 접수하고, 화면 이름과 각 응답의 `dashboardUrl`을 함께 안내한다.
 - 화면이나 파일 이름에서 기대 정답을 만들어 넣지 않는다. 기본 `standard`를 사용하며 관찰 수집·판정 분리는 사용자가 이미지 검사 실험을 요청할 때만 `observation-ledger`를 선택한다.
 - URL은 `{kind:"url",name,url}`. 로컬 이미지는 먼저 `review_upload_image({imagePath})`로 명시된 절대 경로를 올리고 반환된 `asset.assetId`로 `{kind:"image",name,assetId}`를 만든다. 이미지는 PNG/JPEG/WebP 5MiB·20MP 이내, 자동 개인정보 제거 없음. 사용자 제공 화면에 개인정보가 있으면 비식별 이미지를 마련한다.
 - 라이트·다크 동시 검사가 요청되면 URL target 하나에 `themeReview:{mode:"both"}`를 전달한다. 제품에서 적용 상태를 나타내는 CSS 선택자가 확인되면 `themeReview.selectors:{light:"…",dark:"…"}`를 함께 전달할 수 있다. 브라우저 색상 선호도에 반응하는 화면을 확인하는 옵션이며 선택자는 적용 상태 확인에 쓰인다. 작업공간의 첫 URL 검토에도 같은 target 필드를 사용한다.
@@ -30,15 +30,17 @@ URL은 서버의 브라우저가 연다. 로컬 이미지 경로는 Codex 컴퓨
 - 사용자 지정 실행 옵션이 없으면 `options`를 생략해 서버 설정을 사용한다. 별도 실행 설정을 요청하면 `options.evaluator` (`codex`, `claude`, `antigravity`, `openai-compatible`), `options.model`, `options.reasoningEffort`, `options.timeoutSeconds` 중 명시한 값만 전달한다. `options`를 전달하면 미지정 실행 시간 상한은 작업공간 접수 기본값인 1,200초다. API 주소와 키는 서버 대시보드에서 설정한다.
 - 입력마다 고유한 `submissionId`를 사용한다. 응답이 끊기면 같은 작업공간에 같은 입력과 ID로 재전송한다. 일부 화면만 접수됐으면 접수된 링크를 유지하고 응답이 불분명한 화면만 확인한다.
 
-## 두 URL의 스타일 비교
+## 기준 URL과 여러 화면의 스타일 비교
 
-두 주소를 주면서 화면 간 UI 일관성이나 디자인 토큰 차이를 확인해 달라고 하면 비교 목적에 맞는 작업공간에서 `review_compare_styles({workspaceId,submissionId,referenceUrl,comparisonUrl})`로 한 쌍을 접수한다. 두 주소는 같은 출처의 서로 다른 URL이어야 한다. CSS 선택자, 검사할 속성, 이미 발견한 위반을 요청하지 않는다. 서버가 두 화면에서 비교할 요소를 찾아 렌더링 값을 측정한다.
+사용자가 기준 화면과 비교할 화면을 지정하면 같은 작업공간에서 `review_compare_styles`로 한 번 접수한다. 입력은 `workspaceId`, `submissionId`, `referenceUrl`과 비교 URL이다. 비교 화면 한 개는 `comparisonUrl`, 2~4개는 `comparisonUrls`로 전달한다. 주소는 모두 같은 출처에서 서로 달라야 한다. 서버가 지원 요소와 측정 속성을 자동으로 찾는다.
 
-`review_create_workspace_review`로 접수할 때는 하나의 URL target에 `url`과 `comparisonUrl`을 지정하고 평가자, 로그인, 테마 옵션은 생략한다. 수정 후 같은 비교를 다시 실행할 때는 같은 작업공간과 두 주소를 유지하고 새 `submissionId`로 접수한다. 대시보드에서도 검토 탭에서 두 화면 스타일 비교를 다시 실행할 수 있다.
+`review_create_workspace_review`로 접수할 때는 하나의 URL target에 기준 `url`과 `comparisonUrl` 또는 `comparisonUrls`를 지정하고 평가자·로그인·테마 옵션을 생략한다. 같은 비교를 다시 실행할 때는 같은 작업공간에서 새 `submissionId`를 사용한다. 대시보드의 검토 탭에서도 **화면 스타일 비교**를 다시 실행할 수 있다.
 
-MCP에 전용 도구가 없고 현재 체크아웃의 `pnpm run inspect --help`에 `--compare-url`이 있으면, 두 URL에 접근할 수 있는 환경에서 `pnpm run inspect --url 'A' --compare-url 'B'`로 실행할 수 있다. 전용 도구나 CLI 옵션이 없으면 이 비교가 실행되지 않았음을 알린다.
+전용 도구가 없으면 현재 체크아웃의 `pnpm run inspect --help`를 확인한다. 다중 비교를 지원하는 CLI에서는 `pnpm run inspect --url 'A' --compare-url 'B' --compare-url 'C'`처럼 대상마다 옵션을 지정한다. 한 보고서로 묶는 입력 형식이 지원되지 않는 환경에서는 그 제한을 알려준다.
 
-완료된 보고서의 `captures[].deterministicChecks.autoStyleComparison`에서 실제로 비교한 쌍·차이·짝을 찾지 못하거나 측정하지 못한 범위를 읽는다. 측정 차이는 검토 후보로 전달하고, 렌더링 값에서 소스상의 토큰 이름 또는 공용 컴포넌트 사용을 추정하지 않는다. 선택자는 결과 위치를 전달하는 데 사용한다.
+사용자가 직접 인증한 화면을 비교하려면 로컬 대시보드에서 URL을 입력하고 **로그인 후 비교**를 선택하게 한다. 사용자는 Chromium에서 직접 로그인한 후 기준 화면으로 이동한다. 로컬 CLI에서는 자동 비교 명령에 `--headed --login`을 추가하고 로그인 후 Enter를 누른다.
+
+보고서의 `captures[].deterministicChecks.autoStyleComparisons`에서 화면별 비교 결과를 읽는다. 비교 화면이 한 개일 때는 `autoStyleComparison`을 사용한다. 같은 기준 요소·속성·값 차이가 여러 화면에서 반복되면 묶어서 전달한다. 대응 요소가 없거나 측정하지 못한 범위는 미확인으로 남긴다. 측정 차이는 검토 후보이며, 렌더링 값에서 소스 토큰이나 공용 컴포넌트 사용을 추정하지 않는다.
 
 ## 로그인 후 URL 검토
 

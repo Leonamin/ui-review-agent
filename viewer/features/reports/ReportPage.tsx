@@ -327,6 +327,7 @@ export function ReportContent({report,tab,onTab,metadataEditor,workspace}:{repor
     </>,
     compose:workspace.composer,
     results:<div className="workspace-report-tab-content">
+     <WorkspaceStyleCandidates report={report} shouldShowSingle={false}/>
      <LedgerNotice report={report}/><FocusAnswer report={report}/>
      <WorkspaceResults key={isSuggestionLink?'suggestions':'results'} findings={report.findings} suggestions={report.suggestions??[]}
       selected={activeResult} onSelect={selectWorkspaceResult} onBack={()=>setSelectedResult(undefined)}
@@ -357,6 +358,7 @@ export function ReportContent({report,tab,onTab,metadataEditor,workspace}:{repor
   {notices}
   <ReportWorkspaceLink key={report.id} reportId={report.id}/>
   {modalHistory}
+   <WorkspaceStyleCandidates report={report} shouldShowSingle={false}/>
    <AutomaticChecks report={report}/>
    {isSummary?summary:<>
     <LedgerNotice report={report}/><FocusAnswer report={report}/>

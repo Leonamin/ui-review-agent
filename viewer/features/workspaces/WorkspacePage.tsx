@@ -33,7 +33,7 @@ import './workspaces.css';
 import './workspace-report.css';
 const statuses:Record<string,string>={'awaiting-start':'시작 대기',queued:'대기 중',running:'검토 중',completed:'검토 완료',partial:'일부 완료',failed:'실행 실패',cancelled:'취소'};
 const activeRequestStatuses=new Set(['awaiting-start','queued','running']);
-const activePhases:Record<string,string>={preparing:'화면 준비',restoring:'이전 상태 확인',discovering:'조작 대상 확인',acting:'화면 조작',waiting:'결과 준비 대기',evaluating:'결과 검토'};
+const activePhases:Record<string,string>={'manual-login':'열린 Chromium 창에서 로그인하고 기준 화면으로 이동하세요.',preparing:'화면 준비',restoring:'이전 상태 확인',discovering:'조작 대상 확인',acting:'화면 조작',waiting:'결과 준비 대기',evaluating:'결과 검토'};
 const phases:Record<string,string>={'awaiting-start':'실행 시작 대기',queued:'실행 대기',...activePhases,completed:'완료',failed:'실행 실패',cancelled:'취소'};
 const message=(cause:unknown)=>cause instanceof Error?cause.message:String(cause);
 const reportExecutionDate=new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -370,7 +370,9 @@ function WorkspaceDetailPane({workspaceId,selectedReportId,tab:routeTab,hasExpli
  const comparisonReport=previousReport?.id===previousId?previousReport:undefined;
  const isImageReview=Boolean(report?.captures?.some(capture=>capture.image));
  const liveReviewUrl=selectedRequest?.targetUrl??report?.requestedUrl;
- const isStyleComparison=Boolean(selectedRequest?.comparisonUrl||report?.captures?.some(capture=>capture.deterministicChecks?.autoStyleComparison));
+ const isStyleComparison=Boolean(selectedRequest?.comparisonUrl||selectedRequest?.comparisonUrls||report?.captures?.some(
+  ({deterministicChecks})=>deterministicChecks?.autoStyleComparison||deterministicChecks?.autoStyleComparisons,
+ ));
  const canPrepareCredentials=!isImageReview&&Boolean(liveReviewUrl&&canEnterReviewCredentials(liveReviewUrl)&&(selectedRequest||report?.taskContext));
  const waitingStarts=localRequests.flatMap(request=>{
   const attempt=request.attempts.at(-1);
@@ -469,7 +471,7 @@ function WorkspaceDetailPane({workspaceId,selectedReportId,tab:routeTab,hasExpli
  const screenComposerLabel=isImageReview?'이미지 검토 작성':'검증 요청 작성';
  const screenOption={value:'screen' as const,label:screenComposerLabel};
  const focusOption={value:'focus' as const,label:'집중 재검토 작성'};
- const comparisonOption={value:'comparison' as const,label:isStyleComparison?'두 화면 스타일 다시 비교':'두 화면 스타일 비교'};
+ const comparisonOption={value:'comparison' as const,label:isStyleComparison?'화면 스타일 다시 비교':'화면 스타일 비교'};
  const composerOptions=[
   ...(!isStyleComparison?[screenOption]:[]),
   ...(image?[focusOption]:[]),
@@ -482,7 +484,7 @@ function WorkspaceDetailPane({workspaceId,selectedReportId,tab:routeTab,hasExpli
  const isViewingResults=tab==='results'||tab==='suggestions';
  const isSummaryVisible=!report||tab==='summary';
  const lastAcceptedId=acceptedRequests.at(-1)?.requestId;
- const lastSettledRequest=detail.requests.findLast(request=>(request.kind!=='initial'||request.comparisonUrl)&&
+ const lastSettledRequest=detail.requests.findLast(request=>(request.kind!=='initial'||request.comparisonUrl||request.comparisonUrls)&&
   ['completed','failed','cancelled'].includes(request.attempts.at(-1)?.status??''));
  const visibleRequests=[...requestsById.values()].filter(request=>request.requestId===lastAcceptedId||
   request.requestId===lastSettledRequest?.requestId||(isLocalRequest(request)&&
@@ -497,7 +499,7 @@ function WorkspaceDetailPane({workspaceId,selectedReportId,tab:routeTab,hasExpli
      const reportId=movement?.reportIds?.at(-1)??attempt?.reportId;
      const state=attempt?.status==='completed'?attempt.runStatus??attempt.status:attempt?.status;
      const label=movement?'다른 화면으로 이동':statuses[state??'']??'상태 확인 중';
-     const instruction=request.comparisonUrl?'두 화면 스타일 비교':request.instruction;
+     const instruction=request.comparisonUrl||request.comparisonUrls?'화면 스타일 비교':request.instruction;
      return <li key={request.requestId} className="workspace-review-request">
       <div className="workspace-review-request-description">
        <span role="status">
@@ -558,8 +560,8 @@ function WorkspaceDetailPane({workspaceId,selectedReportId,tab:routeTab,hasExpli
     }}/>
    </div>}
    <div hidden={composerKind!=='comparison'}>
-    <InitialReview workspaceId={workspaceId}
-     comparison={{referenceUrl:liveReviewUrl,comparisonUrl:selectedRequest?.comparisonUrl}}
+    <InitialReview key={selectedRequest?.requestId??report.id} workspaceId={workspaceId}
+     comparison={{referenceUrl:liveReviewUrl,comparisonUrl:selectedRequest?.comparisonUrl,comparisonUrls:selectedRequest?.comparisonUrls}}
      onComparisonDraftChange={updateComparisonDraft}
      onDone={request=>{
       if(!isMounted.current)return;

@@ -587,7 +587,7 @@ test('workspace browser binds searches to immutable reports, accepts sequential 
   assert.ok(seen.some(spec=>spec.followup&&spec.imagePath),'image followup dispatches a static image inspector');
   const reviewMode=page.getByRole('combobox',{name:'검토 방식',exact:true});
   await reviewMode.click();
-  assert.deepEqual(await page.getByRole('option').allTextContents(),['이미지 검토 작성','집중 재검토 작성','두 화면 스타일 비교']);
+  assert.deepEqual(await page.getByRole('option').allTextContents(),['이미지 검토 작성','집중 재검토 작성','화면 스타일 비교']);
   await page.getByRole('option',{name:'집중 재검토 작성',exact:true}).click();
   const focusInstruction=page.getByRole('textbox',{name:'확인할 내용',exact:true});
   await focusInstruction.fill('저장된 영역의 선택 상태만 확인해줘');

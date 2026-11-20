@@ -1,6 +1,6 @@
 import {ledgerNotice} from './ledger-presentation.js';
-import {alignmentLabels,alignmentReasonLabel,automaticStyleCoverageGroups,contrastLabels,formatMeasurement,formatViewportBounds,spacingCheckLabel,spacingCheckMeasurement,styleComparisonElementLabel,styleComparisonLabels,styleComparisonMatchLabels,styleComparisonReasons,styleComparisonRoleLabel,styleComparisonSides,themeLabels,themeStatusLabel} from './check-presentation.js';
-import type {AutoStyleComparisonReport} from './automatic-style-comparison.js';
+import {alignmentLabels,alignmentReasonLabel,automaticStyleCoverageGroups,repeatedStyleDifferences,contrastLabels,formatMeasurement,formatViewportBounds,spacingCheckLabel,spacingCheckMeasurement,styleComparisonElementLabel,styleComparisonLabels,styleComparisonMatchLabels,styleComparisonReasons,styleComparisonRoleLabel,styleComparisonSides,themeLabels,themeStatusLabel} from './check-presentation.js';
+import {recordedAutomaticStyles,type AutoStyleComparisonReport} from './automatic-style-comparison.js';
 import type { ReviewFinding, ReviewResult } from './types.js';
 
 function escapeText(value: string): string {
@@ -179,9 +179,20 @@ function renderAutomaticChecks(result:ReviewResult):string[] {
       }
       lines.push('  - 입력란은 캡처에서 가려질 수 있습니다. 값과 위치는 브라우저에서 측정했습니다.');
     }
-    const automatic=deterministicChecks?.autoStyleComparison;
-    if(automatic)lines.push(...renderAutomaticStyleComparison(automatic,result.evidence));
-    const evidenceIds=new Set([...observation.screenshotRefs,...(deterministicChecks?[deterministicChecks.evidenceId]:[]),...(comparison?[comparison.evidenceId]:[]),...(automatic?[automatic.evidenceId]:[])]);
+    const automatic=recordedAutomaticStyles(deterministicChecks);
+    if(automatic.length>1){
+      const repeated=repeatedStyleDifferences(automatic);
+      lines.push('#### 반복되는 스타일 차이','');
+      if(!repeated.length)lines.push('- 측정한 범위에 반복되는 차이 없음');
+      for(const {role,label,difference,targetIndexes} of repeated){
+        lines.push(`- ${escapeText(styleComparisonRoleLabel(role))} · ${escapeText(styleComparisonElementLabel(label))} · ${difference.property} · ${escapeText(difference.reference)} → ${escapeText(difference.comparison)} · 비교 화면 ${targetIndexes.map(index=>index+1).join(', ')}`);
+      }
+    }
+    for(const [index,pair] of automatic.entries()){
+      if(automatic.length>1)lines.push('',`#### 비교 화면 ${index+1} · ${escapeText(pair.comparison.url)}`,'');
+      lines.push(...renderAutomaticStyleComparison(pair,result.evidence));
+    }
+    const evidenceIds=new Set([...observation.screenshotRefs,...(deterministicChecks?[deterministicChecks.evidenceId]:[]),...(comparison?[comparison.evidenceId]:[]),...automatic.map(pair=>pair.evidenceId)]);
     for(const evidenceId of evidenceIds){
       const evidence=result.evidence.find(item=>item.evidenceId===evidenceId);
       const path=evidence&&safePath(evidence.relativePath);

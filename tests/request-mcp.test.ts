@@ -113,6 +113,9 @@ test('external stdio MCP uses HTTP service for workspace reviews, uploads, retri
  assert.deepEqual(requests.at(-1)?.body,{
   submissionId:'compare-1',target:{kind:'url',url:pair.referenceUrl,comparisonUrl:pair.comparisonUrl},
  });
+ const comparisonUrls=[pair.comparisonUrl,'https://app.example.test/settings','https://app.example.test/activity'];
+ await call('review_compare_styles',{workspaceId:urlWorkspaceId,submissionId:'compare-batch',referenceUrl:pair.referenceUrl,comparisonUrls});
+ assert.deepEqual(requests.at(-1)?.body,{submissionId:'compare-batch',target:{kind:'url',url:pair.referenceUrl,comparisonUrls}});
  const beforeInvalidPair=requests.length;
  const invalidPair=await client.callTool({name:'review_compare_styles',arguments:{...pair,comparisonUrl:'https://other.example.test/reports'}});
  assert.equal(invalidPair.isError,true);

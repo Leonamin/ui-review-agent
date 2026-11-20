@@ -72,7 +72,7 @@ export interface Observation {
   verticalScroll?:VerticalScrollPosition;
   state?:PageState;
   theme?:ThemeObservation;
-  deterministicChecks?:{evidenceId:string;contrast?:ThemeContrastSummary;alignment?:GroupAlignmentReport;spacing?:LayoutSpacingReport;styleComparison?:StyleComparisonReport;autoStyleComparison?:AutoStyleComparisonReport};
+  deterministicChecks?:{evidenceId:string;contrast?:ThemeContrastSummary;alignment?:GroupAlignmentReport;spacing?:LayoutSpacingReport;styleComparison?:StyleComparisonReport;autoStyleComparison?:AutoStyleComparisonReport;autoStyleComparisons?:AutoStyleComparisonReport[]};
   source?:ImageSource;
   observationId: string; runId: string; url: string; pageTitle: string;
   captureStartedAt: string; captureEndedAt: string;

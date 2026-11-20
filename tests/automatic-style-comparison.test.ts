@@ -7,9 +7,12 @@ import {dirname,join} from 'node:path';
 import {test} from 'node:test';
 import {fileURLToPath} from 'node:url';
 import {promisify} from 'node:util';
+import {BrowserSession} from '../src/browser.js';
+import {EvidenceStore} from '../src/evidence.js';
 import {inspect} from '../src/core.js';
-import {autoStyleComparisonReportSchema,makeAutomaticStyleComparison,settleAutomaticStyles,type AutoStyleProbe} from '../src/automatic-style-comparison.js';
-import {validateSpec} from '../src/policy.js';
+import {repeatedStyleDifferences} from '../src/check-presentation.js';
+import {autoStyleComparisonReportSchema,autoStyleComparisonsSchema,makeAutomaticStyleComparison,settleAutomaticStyles,type AutoStyleProbe} from '../src/automatic-style-comparison.js';
+import {Budget,validateSpec} from '../src/policy.js';
 import type {RunSpec} from '../src/types.js';
 
 const run = promisify(execFile);
@@ -26,6 +29,19 @@ async function fixture(use:(origin:string,root:string)=>Promise<void>){
  const root=await mkdtemp(join(tmpdir(),'automatic-style-'));
  const server=createServer((request,response)=>{
   const url=new URL(request.url??'/','http://localhost');
+  if(url.pathname==='/manual-login'&&request.method==='POST'){
+   response.writeHead(303,{Location:'/manual-home','Set-Cookie':'fixture-session=allowed; Path=/; HttpOnly; SameSite=Lax'}).end();
+   return;
+  }
+  if(url.pathname.startsWith('/private-')&&!request.headers.cookie?.includes('fixture-session=allowed')){
+   response.writeHead(302,{Location:'/manual-login'}).end();
+   return;
+  }
+  if(['/manual-login','/manual-home'].includes(url.pathname)){
+   response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}).end(url.pathname==='/manual-login'
+    ?'<form method="POST"><button>가상 로그인</button></form>':'<a href="/private-reference">가상 기준 화면</a>');
+   return;
+  }
   const isComparison=url.pathname==='/b'||url.pathname==='/404';
   const controls=url.pathname==='/unrelated'?'<input type="radio" aria-label="별개 옵션">':`
    <label for="search">${isComparison?'보고서 검색':'프로젝트 검색'}</label>
@@ -73,6 +89,56 @@ test('discovers comparable controls from two URLs using the CLI without extra ar
  assert.equal(comparison.ambiguous.filter(entry=>entry.label==='홈').length,2);
  const check=report.coverage.observedChecks.find((check:{checkId:string})=>check.checkId==='style-comparison');
  assert.deepEqual(check.evidenceIds,[comparison.evidenceId,comparison.reference.screenshotEvidenceId,comparison.comparison.screenshotEvidenceId]);
+}));
+
+test('shares a single reference across four targets and retains partial results with repeated differences',()=>fixture(async(origin,root)=>{
+ const reference=new URL(origin+'/a');
+ const comparisonUrls=[origin+'/b?secret=fixture-a',origin+'/404',origin+'/b?secret=fixture-b',origin+'/unchanged'];
+ const base=spec(reference,new URL(comparisonUrls[0]));
+ const batch:RunSpec={...base,autoStyleComparison:{comparisonUrls},limits:{...base.limits,maxObservations:5}};
+ assert.throws(()=>validateSpec({...batch,autoStyleComparison:{comparisonUrls:[reference.href,comparisonUrls[0]]}}),/distinct/);
+ assert.throws(()=>validateSpec({...batch,autoStyleComparison:{comparisonUrls:[comparisonUrls[0],comparisonUrls[0]]}}),/distinct/);
+ assert.throws(()=>validateSpec({...batch,autoStyleComparison:{comparisonUrls:[comparisonUrls[0], 'https://elsewhere.test/']}}),/same origin/);
+ const {result,runDir}=await inspect(batch,root);
+ const pairs=autoStyleComparisonsSchema.parse(result.observations[0].deterministicChecks?.autoStyleComparisons);
+ assert.equal(result.status,'partial');
+ assert.equal(result.observations.length,5);
+ assert.equal(new Set(pairs.map(pair=>pair.reference.screenshotEvidenceId)).size,1);
+ assert.equal(new Set(pairs.map(pair=>pair.comparison.screenshotEvidenceId)).size,4);
+ assert.deepEqual(pairs.map(pair=>pair.coverage.changed),[1,0,1,0]);
+ assert.equal(pairs[1].comparison.reason,'http-error');
+ assert(pairs[3].coverage.matched>0);
+ assert.deepEqual(repeatedStyleDifferences(pairs).map(group=>({
+  property:group.difference.property,reference:group.difference.reference,comparison:group.difference.comparison,indexes:group.targetIndexes,
+ })),[{property:'border-top-left-radius',reference:'16px',comparison:'999px',indexes:[0,2]}]);
+ assert.match(await readFile(join(runDir,'report.md'),'utf8'),/반복되는 스타일 차이[\s\S]+비교 화면 1, 3/);
+ for(const name of ['report.json','manifest.json'])assert.doesNotMatch(await readFile(join(runDir,name),'utf8'),/fixture-a|fixture-b/);
+}));
+
+test('manual style login preserves the same session and resumes read-only collection at the reference',()=>fixture(async(origin,root)=>{
+ const target=new URL(origin+'/private-reference');
+ const comparison=new URL(origin+'/private-comparison');
+ const headed={...spec(target,comparison),isHeaded:true,shouldWaitForLogin:true};
+ assert.doesNotThrow(()=>validateSpec(headed));
+ assert.throws(()=>validateSpec({...headed,isHeaded:false}),/headed/);
+ // Drive the fixture's login in a headless window for CI. The public entry point requires headed mode.
+ const session=new BrowserSession({...headed,isHeaded:false},new Budget(headed),new EvidenceStore('fixture-manual',root));
+ try{
+  await session.start();
+  assert.equal(session.page?.url(),origin+'/manual-login');
+  await session.page!.getByRole('button',{name:'가상 로그인'}).click();
+  await session.page!.waitForURL(origin+'/manual-home');
+  await Promise.all([session.waitForStyleReference(),session.page!.getByRole('link',{name:'가상 기준 화면'}).click()]);
+  await session.finishLogin();
+  const reference=await session.captureAutomaticStyleSide('reference',target.href,1);
+  const compared=await session.captureAutomaticStyleSide('comparison',comparison.href,0);
+  assert.equal(reference.observation.url,target.href);
+  assert.equal(compared.observation.url,comparison.href);
+  assert(makeAutomaticStyleComparison(
+   {url:target.href,sample:reference.sample},{url:comparison.href,sample:compared.sample},
+  ).coverage.matched>0);
+  assert.equal(await session.page!.evaluate(()=>fetch('/manual-login',{method:'POST'}).then(()=>true,()=>false)),false);
+ }finally{await session.close();}
 }));
 
 test('keeps zero matches and an unusable comparison separate from successful measurements',()=>fixture(async(origin,root)=>{

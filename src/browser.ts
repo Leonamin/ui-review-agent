@@ -17,6 +17,10 @@ import {collectThemeContrast,probeTheme,type ThemeMode,type ThemeProbe} from './
 import {activeReplayModal} from './replay-dismissal.js';
 import {assertAuthenticatedReviewTarget,assertReviewCredentialIsHidden,canDetectReviewLoginRedirect,getAuthenticatedReviewState,readRedirectedReviewLogin,ReviewAuthenticationError,type ReviewCredentials,type ReviewLoginRequired} from './review-auth.js';
 import {forwardReviewSupabaseRequest,type ProjectSupabaseAuth} from './review-supabase-transport.js';
+function isRequestedStylePage(actual:URL,expected:URL):boolean{
+ return actual.origin===expected.origin&&actual.pathname===expected.pathname&&actual.hash===expected.hash&&
+  [...new Set(expected.searchParams.keys())].every(key=>JSON.stringify(actual.searchParams.getAll(key))===JSON.stringify(expected.searchParams.getAll(key)));
+}
 export interface ReadinessProbe {hasLoadingSignal:boolean;hasContentSignal:boolean;hasVisibleModal:boolean;hasPendingImages:boolean;hasRequiredReadyHint:boolean;fingerprint:string}
 export interface ModalActionCandidate {type:ModalActionMethod;elementRef:string|null;label?:string}
 export interface ModalActionContext {modalRef:string;title:string;semanticKey:string;actions:ModalActionCandidate[];blockedReason?:string}
@@ -217,7 +221,27 @@ export class BrowserSession {
   if(this.supabaseAccessToken)await assertReviewCredentialIsHidden(this.page,this.supabaseAccessToken);
   if(!this.isAwaitingLogin)assertOrigin(this.page.url(),this.spec);this.modalNavigationBaselineUrl=this.page.url();
  }
- async finishLogin():Promise<void>{assertOrigin(this.requirePage().url(),this.spec);this.isAwaitingLogin=false;for(const page of this.context?.pages()??[])if(page!==this.page)await page.close();this.budget.resetClock();}
+ async waitForStyleReference():Promise<void>{
+  if(!this.isAwaitingLogin||!this.spec.autoStyleComparison)throw new Error('Manual style login is not active.');
+  const reference=new URL(this.spec.targetUrl!);
+  await this.requirePage().waitForURL(url=>isRequestedStylePage(url,reference),{waitUntil:'domcontentloaded',timeout:600_000});
+ }
+ async finishLogin():Promise<void>{
+  const page=this.requirePage();
+  assertOrigin(page.url(),this.spec);
+  this.isAwaitingLogin=false;
+  for(const otherPage of this.context?.pages()??[])if(otherPage!==page)await otherPage.close();
+  this.budget.resetClock();
+  if(!this.spec.autoStyleComparison)return;
+  // Manual login may land on a dashboard rather than on the requested reference.
+  const referenceUrl=this.spec.targetUrl!;
+  const response=await page.goto(referenceUrl,{waitUntil:'domcontentloaded',timeout:Math.min(30000,this.budget.remainingMs())});
+  assertOrigin(page.url(),this.spec);
+  if(!isRequestedStylePage(new URL(page.url()),new URL(referenceUrl)))
+   throw new PolicyError('style-login-reference','로그인 후 기준 화면을 열 수 없습니다. 로그인 상태와 접근 권한을 확인하세요.');
+  this.hasStyleReferenceHttpError=(response?.status()??0)>=400;
+ }
+
  async prepareLoginCapture(expectedLoginUrl?:string,shouldOnlyReadCurrent=false):Promise<void>{
   this.shouldDetectLoginDuringCapture=!expectedLoginUrl&&canDetectReviewLoginRedirect(this.spec.targetUrl!);
   if(!expectedLoginUrl&&!this.shouldDetectLoginDuringCapture)return;
@@ -328,15 +352,15 @@ export class BrowserSession {
    ?after:{status:'unverified',reason:'unstable'};
   return {observation,sample};
  }
- async captureAutomaticStyleSide(key:'reference'|'comparison'):Promise<{observation:Observation;sample:AutoStyleSample}>{
+ async captureAutomaticStyleSide(key:'reference'|'comparison',url:string,reservedObservations:number):Promise<{observation:Observation;sample:AutoStyleSample}>{
   const config=this.spec.autoStyleComparison;
   if(!config)throw new Error('Automatic style comparison is not configured.');
-  const {observation,before,after}=await this.captureStylePage<AutoStyleProbe>(key,config.comparisonUrl,probeAutomaticStyles,
-   reason=>({entries:[],hasReachedLimit:false,reason}));
+  const {observation,before,after}=await this.captureStylePage<AutoStyleProbe>(key,url,probeAutomaticStyles,
+   reason=>({entries:[],hasReachedLimit:false,reason}),reservedObservations);
   return {observation,sample:settleAutomaticStyles(before,after,observation.isStable,value=>this.redact(value))};
  }
  private async captureStylePage<T>(key:'reference'|'comparison',comparisonUrl:string,probe:(page:Page,url:string)=>Promise<T>,
-  unavailable:(reason:'http-error'|'unavailable')=>T):Promise<{observation:Observation;before:T;after:T}>{
+  unavailable:(reason:'http-error'|'unavailable')=>T,reservedObservations=0):Promise<{observation:Observation;before:T;after:T}>{
   return this.exclusive(async()=>{
    const page=this.requirePage();
    const url=key==='reference'?this.spec.targetUrl!:comparisonUrl;
@@ -363,8 +387,7 @@ export class BrowserSession {
    // Allow lazy rendering and default route parameters to settle before taking the first sample.
    if(this.spec.autoStyleComparison&&this.budget.remainingMs()>1000)await page.waitForTimeout(350);
    const measured=await capture();
-   const reserved=key==='reference'?1:0;
-   if(this.spec.autoStyleComparison&&!measured.observation.isStable&&this.budget.remainingObservations()>reserved&&this.budget.remainingMs()>1000)
+   if(this.spec.autoStyleComparison&&!measured.observation.isStable&&this.budget.remainingObservations()>reservedObservations&&this.budget.remainingMs()>1000)
     return capture();
    return measured;
   });

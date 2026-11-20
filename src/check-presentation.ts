@@ -25,6 +25,25 @@ const styleRoleLabels = new Map([
 ]);
 export const styleComparisonRoleLabel=(role:string)=>styleRoleLabels.get(role)??role;
 export const styleComparisonElementLabel=(label:string)=>label||'이름 없는 요소';
+export function repeatedStyleDifferences(reports:AutoStyleComparisonReport[]){
+ const groups=new Map<string,{
+  role:AutoStyleComparisonReport['matches'][number]['role'];label:string;difference:AutoStyleComparisonReport['matches'][number]['differences'][number];
+  targetIndexes:Set<number>;
+ }>();
+ for(const [index,report] of reports.entries()){
+  for(const match of report.matches){
+   for(const difference of match.differences){
+    const key=JSON.stringify([match.reference.selector,match.role,difference.property,difference.reference,difference.comparison]);
+    const group=groups.get(key)??{role:match.role,label:match.reference.label,difference,targetIndexes:new Set<number>()};
+    group.targetIndexes.add(index);
+    groups.set(key,group);
+   }
+  }
+ }
+ return [...groups.entries()].filter(([,group])=>group.targetIndexes.size>1)
+  .sort(([,a],[,b])=>b.targetIndexes.size-a.targetIndexes.size)
+  .map(([key,{targetIndexes,...group}])=>({...group,key,targetIndexes:[...targetIndexes]}));
+}
 type UnpairedStyleElement=AutoStyleComparisonReport['unmatched'][number] & {
  reason?:AutoStyleComparisonReport['unmeasured'][number]['reason'];
 };

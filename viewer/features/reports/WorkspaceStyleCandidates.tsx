@@ -1,7 +1,7 @@
 import {useId,useRef,useState} from 'react';
 import {Columns2} from 'lucide-react';
 import type {AutoStyleComparisonReport} from '../../../src/automatic-style-comparison';
-import {styleComparisonElementLabel,styleComparisonRoleLabel,styleComparisonSides} from '../../../src/check-presentation';
+import {repeatedStyleDifferences,styleComparisonElementLabel,styleComparisonReasons,styleComparisonRoleLabel,styleComparisonSides} from '../../../src/check-presentation';
 import {Disclosure} from '../../shared/Disclosure';
 import {Button} from '../../shared/goodcase/components/basic/button';
 import {Image} from '../../shared/goodcase/components/basic/image';
@@ -36,13 +36,14 @@ function pairName(match:StyleMatch){
  return `${styleComparisonRoleLabel(match.role)} · ${a===b?a:`${a} ↔ ${b}`}`;
 }
 
-function PairCapture({side,comparison,match,report}:{
+function PairCapture({side,comparison,match,report,labels=styleComparisonSides}:{
  side:StyleSide;
  comparison:AutoStyleComparisonReport;
- match:StyleMatch;
+ match?:StyleMatch;
+ labels?:Record<StyleSide,string>;
  report:Pick<ReportDetail,'captures'|'images'>;
 }){
- const label=styleComparisonSides[side];
+ const label=labels[side];
  const image=automaticStyleComparisonImage(comparison[side],report.images);
  const viewport=image&&report.captures?.find(capture=>capture.observationId===image.observationId)?.viewport;
  const imageSize=image?.layout?.imageSize??viewport;
@@ -52,7 +53,7 @@ function PairCapture({side,comparison,match,report}:{
    {image&&<a className="text-link" href={image.url} target="_blank" rel="noreferrer" aria-label={label+' 원본 열기'}>원본 열기</a>}
   </figcaption>
   {image
-   ? <Image key={image.id} src={image.url} alt={`${label}의 ${styleComparisonElementLabel(match[side].label)} 캡처`}
+   ? <Image key={image.id} src={image.url} alt={match?`${label}의 ${styleComparisonElementLabel(match[side].label)} 캡처`:`${label} 캡처`}
       aspectRatio={imageSize?`${imageSize.width} / ${imageSize.height}`:'16 / 10'}/>
    : <p className="style-candidate-no-capture">저장된 캡처가 없습니다.</p>}
  </figure>;
@@ -83,7 +84,9 @@ function CandidateDetail({comparison,match,report}:{
  </>;
 }
 
-export function WorkspaceStyleCandidates({report}:{report:Pick<ReportDetail,'captures'|'images'>}){
+type StyleReportView=Pick<ReportDetail,'captures'|'images'>;
+
+function LegacyStyleCandidates({report}:{report:StyleReportView}){
  const headingId=useId();
  const pickerId=useId();
  const triggerRef=useRef<HTMLButtonElement>(null);
@@ -143,5 +146,50 @@ export function WorkspaceStyleCandidates({report}:{report:Pick<ReportDetail,'cap
     </section>)}
    </Disclosure>
   </Dialog>
+ </section>;
+}
+
+export function WorkspaceStyleCandidates({report,shouldShowSingle=true}:{report:StyleReportView;shouldShowSingle?:boolean}){
+ const headingId=useId();
+ const comparisons=(report.captures??[]).flatMap(capture=>capture.deterministicChecks?.autoStyleComparisons??[]);
+ if(!comparisons.length)return shouldShowSingle?<LegacyStyleCandidates report={report}/>:null;
+ const repeated=repeatedStyleDifferences(comparisons);
+ const changed=comparisons.filter(pair=>pair.coverage.changed>0).length;
+ const unmeasured=comparisons.filter(pair=>!pair.coverage.matched).length;
+ return <section className="style-comparison-batch" aria-labelledby={headingId}>
+  <h3 id={headingId}>화면별 스타일 비교</h3>
+  <p>비교 화면 {comparisons.length}개 · 차이 후보 있음 {changed}개 · 비교 미확인 {unmeasured}개</p>
+  <div>
+   <h4>반복되는 스타일 차이</h4>
+   {repeated.length>0?<ul className="automatic-check-list">{repeated.map(({key,role,label,difference,targetIndexes})=><li key={key}>
+    <strong>{styleComparisonRoleLabel(role)} · {styleComparisonElementLabel(label)} · {propertyLabels[difference.property]}</strong>
+    <p><code>{difference.reference}</code> → <code>{difference.comparison}</code> · 비교 화면 {targetIndexes.map(index=>index+1).join(', ')}</p>
+   </li>)}</ul>:<p className="muted">측정한 범위에 반복되는 차이가 없습니다.</p>}
+  </div>
+  {comparisons.map((pair,index)=>{
+   const {matched,changed}=pair.coverage;
+   const differences=changedStyleMatches(pair);
+   const reason=pair.reference.reason??pair.comparison.reason;
+   const labels={reference:'기준 화면',comparison:`비교 화면 ${index+1}`};
+   const path=URL.parse(pair.comparison.url)?.pathname??pair.comparison.url;
+   const status=!matched?'비교 미확인':changed?`차이 후보 ${changed}쌍`:'측정한 차이 없음';
+   return <Disclosure key={pair.evidenceId} title={`${labels.comparison} · ${path} · ${status}`}>
+    <div className="style-comparison-batch-detail">
+     <p>비교한 요소 {matched}쌍 · 차이 없음 {matched-changed}쌍</p>
+     {reason&&<p>{styleComparisonReasons[reason]}</p>}
+     {(pair.reference.hasReachedLimit||pair.comparison.hasReachedLimit)&&<p>탐색 한도에 도달해 일부 요소를 확인하지 못했습니다.</p>}
+     {differences.length>0&&<ul className="automatic-check-list">{differences.map(match=><li key={match.reference.selector}>
+      <strong>{pairName(match)}</strong>
+      <ul>{match.differences.map(difference=><li key={difference.property}>
+       {propertyLabels[difference.property]} <code>{difference.reference}</code> → <code>{difference.comparison}</code>
+      </li>)}</ul>
+     </li>)}</ul>}
+     <div className="style-candidate-captures">
+      {sides.map(side=><PairCapture key={side} side={side} comparison={pair} report={report} labels={labels}/>)}
+     </div>
+     <AutomaticStyleComparisonScope report={pair}/>
+    </div>
+   </Disclosure>;
+  })}
  </section>;
 }

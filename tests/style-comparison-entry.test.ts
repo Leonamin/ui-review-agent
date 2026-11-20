@@ -108,7 +108,7 @@ test('workspace accepts two URLs from the dashboard and repeats the comparison w
   const page=await browser.newPage();
   await page.goto(`http://127.0.0.1:${port}/?workspace=${workspace.workspaceId}`);
   await page.getByRole('combobox',{name:'시작할 자료'}).click();
-  await page.getByRole('option',{name:'두 화면 스타일 비교'}).click();
+  await page.getByRole('option',{name:'화면 스타일 비교'}).click();
   await page.getByLabel('기준 화면 URL').fill(referenceUrl);
   await page.getByLabel('비교 화면 URL').fill(comparisonUrl);
   assert.equal(await page.getByRole('button',{name:'로그인 정보 입력'}).count(),0);
@@ -129,7 +129,7 @@ test('workspace accepts two URLs from the dashboard and repeats the comparison w
   await page.goto(`http://127.0.0.1:${port}/?workspace=${workspace.workspaceId}&report=${parentReportId}&tab=compose`);
   const reviewTab=page.getByRole('tab',{name:'검토',exact:true});
   const composer=page.getByRole('tabpanel',{name:'검토',exact:true});
-  await composer.getByRole('heading',{name:'두 화면 스타일 다시 비교'}).waitFor();
+  await composer.getByRole('heading',{name:'화면 스타일 다시 비교'}).waitFor();
   assert.equal(await page.getByRole('button',{name:'추가 검토',exact:true}).count(),0);
   assert.equal(await composer.getByRole('button',{name:'검증 요청',exact:true}).count(),0);
   assert.equal(await composer.getByRole('button',{name:'집중 재검토 요청',exact:true}).count(),0);
@@ -150,6 +150,27 @@ test('workspace accepts two URLs from the dashboard and repeats the comparison w
    await waitUntil(async()=> (await service.workspace(workspace.workspaceId)).requests.length===requestCount&&calls.length===requestCount);
    assert.deepEqual(calls[requestCount-1].spec.autoStyleComparison,{comparisonUrl});
   }
+  const comparisonUrls=[comparisonUrl,'https://app.example.test/settings','https://app.example.test/activity','https://app.example.test/inbox'];
+  for(const [index,url] of comparisonUrls.slice(1).entries()){
+   await composer.getByRole('button',{name:'비교 화면 추가'}).click();
+   await composer.getByLabel(`비교 화면 ${index+2} URL`).fill(url);
+  }
+  assert.equal(await composer.getByRole('button',{name:'비교 화면 추가'}).count(),0);
+  await composer.getByRole('button',{name:'스타일 비교 시작'}).click();
+  await waitUntil(async()=> (await service.workspace(workspace.workspaceId)).requests.length===4&&calls.length===4);
+  assert.deepEqual(calls[3].spec.autoStyleComparison,{comparisonUrls});
+  const batch=(await service.workspace(workspace.workspaceId)).requests[3];
+  assert.deepEqual(batch.comparisonUrls,comparisonUrls);
+  assert.equal(batch.options.evaluator,'rules-only');
+
+  await composer.getByRole('button',{name:'로그인 후 비교'}).click();
+  await waitUntil(async()=>calls.length===5);
+  assert.equal(calls[4].spec.isHeaded,true);
+  assert.equal(calls[4].spec.shouldWaitForLogin,true);
+  assert.equal(calls[4].runtime?.shouldResumeOnStyleReference,true);
+  assert.equal(calls[4].runtime?.credentials,undefined);
+  assert.equal(calls[4].spec.hasMutationPermission,false);
+
  }finally{
   await browser.close();
   await service.close();

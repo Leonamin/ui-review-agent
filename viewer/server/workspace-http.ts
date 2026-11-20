@@ -93,6 +93,12 @@ export async function handleWorkspaceHttp(req:IncomingMessage,res:ServerResponse
    if(action==='membership')json(200,{workspace:await service.moveWorkspace(id,input)});
    else if(action==='reports')json(200,{workspace:await service.attachWorkspaceReport(id,input,report=>repository.followupSource(report))});
    else if(action==='reviews'||action==='requests'){
+    if(action==='reviews'&&input&&typeof input==='object'&&'target' in input&&input.target&&
+       typeof input.target==='object'&&'shouldWaitForLogin' in input.target&&input.target.shouldWaitForLogin===true){
+     const peer=req.socket.remoteAddress?.replace(/^::ffff:/,'');
+     if(!['127.0.0.1','::1'].includes(peer??'')||!['localhost','127.0.0.1','[::1]'].includes(new URL(origin).hostname))
+      throw new ReviewServiceError(403,'뷰어가 실행 중인 기기의 로컬 대시보드에서 직접 로그인할 수 있습니다.');
+    }
     const {workspace,request}=action==='reviews'
      ?await service.submitWorkspaceInitial(id,input)
      :await service.submitWorkspaceFollowup(id,input,(report,image)=>repository.followupSource(report,image));

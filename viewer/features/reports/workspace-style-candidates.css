@@ -237,3 +237,23 @@
   display: none;
  }
 }
+
+.style-comparison-batch,
+.style-comparison-batch-detail {
+ display: grid;
+ gap: 12px;
+ min-width: 0;
+}
+
+.style-comparison-batch {
+ padding: 16px;
+ border: 1px solid var(--gc-border);
+ border-radius: var(--gc-radius);
+ overflow-wrap: anywhere;
+}
+
+.style-comparison-batch h3,
+.style-comparison-batch h4,
+.style-comparison-batch p {
+ margin: 0;
+}

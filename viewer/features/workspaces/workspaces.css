@@ -171,3 +171,22 @@
   padding-inline: 12px;
  }
 }
+
+.workspace-create-form .style-comparison-input {
+ display: flex;
+ gap: 8px;
+ align-items: end;
+}
+
+.style-comparison-input > label {
+ flex: 1;
+ min-width: 0;
+ display: grid;
+ gap: 7px;
+ font-size: 13px;
+ font-weight: 600;
+}
+
+.style-comparison-input + .gc-button {
+ justify-self: start;
+}

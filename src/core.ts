@@ -26,7 +26,7 @@ import type {VerificationResult} from './verification-types.js';
 import type {RunSpec,ReviewResult,Check,Observation,ActionRecord,RuleFinding,EvaluationResult,StateDiscoveryResult} from './types.js';
 import {verifyThemePair,type ThemeCapture,type ThemeProbe} from './theme-review.js';
 import {makeStyleComparison} from './style-comparison.js';
-import {makeAutomaticStyleComparison} from './automatic-style-comparison.js';
+import {automaticStyleUrls,makeAutomaticStyleComparison,type AutoStyleComparisonReport} from './automatic-style-comparison.js';
 import {ReviewAuthenticationError,ReviewLoginRequired,type ReviewCredentials,type ProjectSupabaseAuth} from './review-auth.js';
 export interface ReviewRuntimeOptions {
  evaluate?:typeof evaluate;
@@ -40,9 +40,10 @@ export interface ReviewRuntimeOptions {
  projectSupabaseAuth?:ProjectSupabaseAuth;
  shouldDetectRedirectedLogin?:boolean;
  expectedRedirectedLoginUrl?:string;
+ shouldResumeOnStyleReference?:boolean;
 }
 export async function inspect(spec:RunSpec,outputRoot:string,dependencies:ReviewRuntimeOptions={}):Promise<{result:ReviewResult;runDir:string}>{
- validateSpec(spec);const hasStyleComparison=Boolean(spec.styleComparison||spec.autoStyleComparison);if(dependencies.credentials&&hasStyleComparison)throw new Error('Style comparison does not support authentication.');if(dependencies.credentials&&(spec.imagePath||spec.shouldWaitForLogin))throw new ReviewAuthenticationError('destination');if(spec.imagePath)return inspectImage(spec,outputRoot,dependencies);const runtimeDir=dirname(fileURLToPath(import.meta.url));const runtimeHashes:Record<string,string>={};
+ validateSpec(spec);const comparisonUrls=spec.autoStyleComparison?automaticStyleUrls(spec.autoStyleComparison):[];const hasStyleComparison=Boolean(spec.styleComparison||spec.autoStyleComparison);if(dependencies.credentials&&hasStyleComparison)throw new Error('Style comparison does not support authentication.');if(dependencies.credentials&&(spec.imagePath||spec.shouldWaitForLogin))throw new ReviewAuthenticationError('destination');if(spec.imagePath)return inspectImage(spec,outputRoot,dependencies);const runtimeDir=dirname(fileURLToPath(import.meta.url));const runtimeHashes:Record<string,string>={};
  for(const name of (await readdir(runtimeDir)).filter(name=>/\.(?:js|ts)$/.test(name))){runtimeHashes[name]=createHash('sha256').update(await readFile(resolve(runtimeDir,name))).digest('hex');}
  const runId=`${new Date().toISOString().replace(/[:.]/g,'-')}-${randomUUID().slice(0,8)}`;const runDir=resolve(outputRoot,runId);await mkdir(runDir,{recursive:true,mode:0o700});
  const startedAt=new Date().toISOString();const budget=new Budget(spec);const store=new EvidenceStore(runId,runDir);let session=new BrowserSession(spec,budget,store,undefined,{canSendProjectPost:dependencies.canSendProjectPost,projectSupabaseAuth:dependencies.projectSupabaseAuth});let lease:BrowserLeaseReservation|undefined;let hasReusedBrowser=false;let followup:FollowupResult|undefined;
@@ -74,8 +75,20 @@ export async function inspect(spec:RunSpec,outputRoot:string,dependencies:Review
    throw error instanceof ReviewAuthenticationError?error:new ReviewAuthenticationError('target');
   }
   if(spec.shouldWaitForLogin){
-   const readline=createInterface({input:process.stdin,output:process.stderr});
-   try{await readline.question('Complete login in the browser, return to the target origin, then press Enter: ',{signal:AbortSignal.timeout(600000)});await session.finishLogin();armDeadline();}finally{readline.close();}
+   if(dependencies.shouldResumeOnStyleReference){
+    dependencies.onProgress?.({phase:'manual-login',reason:'열린 Chromium 창에서 로그인하고 기준 화면으로 이동하세요.'});
+    await session.waitForStyleReference();
+   }else{
+    const readline=createInterface({input:process.stdin,output:process.stderr});
+    try{
+     await readline.question('Complete login in the browser, return to the target origin, then press Enter: ',
+      {signal:AbortSignal.any([AbortSignal.timeout(600_000),abortController.signal])});
+    }finally{readline.close();}
+   }
+   if(abortController.signal.aborted)throw new Error('User cancelled');
+   await session.finishLogin();
+   armDeadline();
+   dependencies.onProgress?.({phase:'opening',reason:'로그인한 화면의 스타일을 비교합니다.'});
   }
   if(!dependencies.credentials&&!spec.shouldWaitForLogin){
    const expectedLoginUrl=dependencies.expectedRedirectedLoginUrl;
@@ -83,7 +96,7 @@ export async function inspect(spec:RunSpec,outputRoot:string,dependencies:Review
   }
   mcp=await startMcp(session);client=await connectMcp(mcp.url,mcp.token);
   const styleReference=spec.styleComparison?await session.captureStyleSide('reference'):undefined;
-  const autoReference=spec.autoStyleComparison?await session.captureAutomaticStyleSide('reference'):undefined;
+  const autoReference=spec.autoStyleComparison?await session.captureAutomaticStyleSide('reference',spec.targetUrl!,comparisonUrls.length):undefined;
   const initial=styleReference?.observation??autoReference?.observation??await callTool<Observation>(client,'captureObservation');observed.set('initial-screen',initial.evidenceRefs.map(e=>e.evidenceId));
   const base=spec.followup?.executionBase;
   const dismissalIndices=[...(base?.dismissalEvidence?.map(item=>item.replayIndex)??[]),...(base?.dismissalConflicts??[])];
@@ -202,26 +215,40 @@ export async function inspect(spec:RunSpec,outputRoot:string,dependencies:Review
     reasons.set('style-comparison','지정한 두 화면의 요소를 안정적으로 측정하지 못했습니다.');
    else observed.set('style-comparison',[evidence.evidenceId,...initial.screenshotRefs,...(target?.observation.screenshotRefs??[])]);
   }
-  if(spec.autoStyleComparison&&autoReference){
-   const target=!isCancelled&&budget.remainingMs()>0?await session.captureAutomaticStyleSide('comparison').catch(()=>undefined):undefined;
+  if(autoReference){
    const describe=({observation,sample}:typeof autoReference)=>({
     sample,url:observation.url,observationId:observation.observationId,screenshotEvidenceId:observation.screenshotRefs[0],
    });
-   const measured=makeAutomaticStyleComparison(describe(autoReference),target?describe(target):{
-    url:safeUrl(spec.autoStyleComparison.comparisonUrl),sample:{entries:[],hasReachedLimit:false,reason:'unavailable'},
-   });
-   const evidence=await store.save(initial.observationId,'rule',JSON.stringify(measured,null,2),'application/json','automatic-style-comparison');
-   initial.evidenceRefs.push(evidence);
-   initial.deterministicChecks={evidenceId:evidence.evidenceId,...initial.deterministicChecks,autoStyleComparison:{evidenceId:evidence.evidenceId,...measured}};
-   if(measured.reference.reason||measured.comparison.reason)
-    reasons.set('style-comparison','지정한 두 화면을 안정적으로 측정하지 못했습니다.');
-   else if(measured.reference.hasReachedLimit||measured.comparison.hasReachedLimit)
+   const reference=describe(autoReference);
+   const comparisons:AutoStyleComparisonReport[]=[];
+   for(const [index,url] of comparisonUrls.entries()){
+    const target=!isCancelled&&budget.remainingMs()>0
+     ?await session.captureAutomaticStyleSide('comparison',url,comparisonUrls.length-index-1).catch(()=>undefined)
+     :undefined;
+    const measured=makeAutomaticStyleComparison(reference,target?{
+     ...describe(target),url:safeUrl(url),
+    }:{url:safeUrl(url),sample:{entries:[],hasReachedLimit:false,reason:'unavailable'}});
+    const evidence=await store.save(initial.observationId,'rule',JSON.stringify(measured,null,2),'application/json',
+     comparisonUrls.length===1?'automatic-style-comparison':`automatic-style-comparison-${index+1}`);
+    initial.evidenceRefs.push(evidence);
+    comparisons.push({evidenceId:evidence.evidenceId,...measured});
+   }
+   initial.deterministicChecks={
+    ...initial.deterministicChecks,evidenceId:initial.deterministicChecks?.evidenceId??comparisons[0].evidenceId,
+    ...(comparisons.length===1?{autoStyleComparison:comparisons[0]}:{autoStyleComparisons:comparisons}),
+   };
+   if(comparisons.some(pair=>pair.reference.reason||pair.comparison.reason))
+    reasons.set('style-comparison','일부 화면을 안정적으로 측정하지 못했습니다.');
+   else if(comparisons.some(pair=>pair.reference.hasReachedLimit||pair.comparison.hasReachedLimit))
     reasons.set('style-comparison','요소 탐색 한도에 도달해 일부 요소의 짝을 확인하지 못했습니다.');
-   else if(!measured.coverage.matched)
-    reasons.set('style-comparison','두 화면에서 비교할 수 있는 요소 쌍을 찾지 못했습니다.');
-   else if(measured.coverage.unmeasured)
+   else if(comparisons.some(pair=>!pair.coverage.matched))
+    reasons.set('style-comparison','일부 비교에서 대응하는 요소 쌍을 찾지 못했습니다.');
+   else if(comparisons.some(pair=>pair.coverage.unmeasured))
     reasons.set('style-comparison','일부 요소의 스타일을 안정적으로 측정하지 못했습니다.');
-   else observed.set('style-comparison',[evidence.evidenceId,...initial.screenshotRefs,...(target?.observation.screenshotRefs??[])]);
+   else observed.set('style-comparison',[...new Set(comparisons.flatMap(pair=>[
+    pair.evidenceId,...(pair.reference.screenshotEvidenceId?[pair.reference.screenshotEvidenceId]:[]),
+    ...(pair.comparison.screenshotEvidenceId?[pair.comparison.screenshotEvidenceId]:[]),
+   ]))]);
   }
   for(const action of spec.allowedActions.filter(action=>!spec.shouldVerify||!isVerificationTab(action))){
    if(isCancelled)break;
@@ -325,7 +352,7 @@ export async function inspect(spec:RunSpec,outputRoot:string,dependencies:Review
  const verificationCandidates=evaluation.findings.filter(f=>f.disposition==='needs-verification');
  if(spec.evaluator!=='rules-only')verificationCandidates.push(...unreportedRuleCandidates(session.rules,evaluation));
  const result:ReviewResult={...(followup?{followup}:{}),...(stateDiscovery?{stateDiscovery}:{}),...(spec.shouldVerify?{verifications,findingsBasis:'initial-ai-review' as const,findingAssessments:buildFindingAssessments(evaluation.findings,verifications)}:{}),schemaVersion:'0.1',provider:spec.evaluator,runId,status,targetUrl:safeUrl(spec.targetUrl!),startedAt,endedAt:new Date().toISOString(),findings:evaluation.findings.filter(f=>f.disposition==='confirmed'),verificationCandidates,coverage,observations:session.observations,actions:session.actions,rules:session.rules,evidence:store.evidence,limitations:[...new Set([...limitations,...session.warnings,...evaluation.limitations])],evaluation,terminationReason};
- const safeSpec={...spec,...(spec.followup?{followup:{...spec.followup,sourceImagePath:undefined}}:{}),...(spec.styleComparison?{styleComparison:{...spec.styleComparison,comparisonUrl:safeUrl(spec.styleComparison.comparisonUrl)}}:{}),...(spec.autoStyleComparison?{autoStyleComparison:{comparisonUrl:safeUrl(spec.autoStyleComparison.comparisonUrl)}}:{}),targetUrl:safeUrl(spec.targetUrl!),allowedActions:spec.allowedActions.map(({value,...action})=>({...action,...(value?{hasValue:true}:{})}))};
+ const safeSpec={...spec,...(spec.followup?{followup:{...spec.followup,sourceImagePath:undefined}}:{}),...(spec.styleComparison?{styleComparison:{...spec.styleComparison,comparisonUrl:safeUrl(spec.styleComparison.comparisonUrl)}}:{}),...(spec.autoStyleComparison?{autoStyleComparison:'comparisonUrls' in spec.autoStyleComparison?{comparisonUrls:comparisonUrls.map(safeUrl)}:{comparisonUrl:safeUrl(spec.autoStyleComparison.comparisonUrl)}}:{}),targetUrl:safeUrl(spec.targetUrl!),allowedActions:spec.allowedActions.map(({value,...action})=>({...action,...(value?{hasValue:true}:{})}))};
  await Promise.all([
   writeFile(resolve(runDir,'manifest.json'),JSON.stringify({schemaVersion:'0.1',provider:spec.evaluator,requestedModel:spec.model??null,requestedReasoningEffort:spec.reasoningEffort??null,strategy:spec.strategy??'A',runId,status,spec:safeSpec,coverage,startedAt,endedAt:result.endedAt,terminationReason,evaluationCalls:evaluationCalls.map(call=>({provider:call.provider??spec.evaluator,status:call.status,usage:call.usage,model:call.model,calls:call.calls})),implementation:{runtimeHashes},toolVersions:{node:process.version}},null,2),{mode:0o600}),
   ...(spec.shouldVerify?[writeFile(resolve(runDir,'verification-replay.json'),JSON.stringify({version:'1',maxRequests:3,maxOcclusionTargetsPerRequest:3,requests:evaluation.verificationRequests??[],results:verifications,requiresFreshReferences:true},null,2),{mode:0o600})]:[]),

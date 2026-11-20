@@ -1,10 +1,11 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { open, realpath } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { link, open, realpath, unlink } from 'node:fs/promises';
+import { basename, dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { auditWorkspaceReportPaths } from './workspace-state-audit.js';
 import { convertWorkspaceState } from './workspace-state-converter.js';
+import { readWorkspaceStateCandidate } from './workspace-state-runtime.js';
 
 const MAX_STATE_BYTES = 64 * 1024 * 1024;
 
@@ -29,20 +30,48 @@ async function readReplicaState(runsRoot: string) {
  }
 }
 
+async function writeSnapshot(output: string, content: string) {
+ const destination = resolve(await realpath(dirname(resolve(output))), basename(output));
+ const temporary = destination + '.' + randomUUID() + '.tmp';
+ const file = await open(temporary, 'wx', 0o600);
+ try {
+  try {
+   await file.writeFile(content);
+   await file.sync();
+  } finally {
+   await file.close();
+  }
+  await link(temporary, destination);
+ } finally {
+  await unlink(temporary);
+ }
+}
+
 async function main() {
  const {values} = parseArgs({options: {
   runs: {type: 'string'},
   'original-runs-root': {type: 'string'},
+  'output': {type: 'string'},
+  'to': {type: 'string'},
   help: {type: 'boolean'},
  }});
  if (values.help) {
-  process.stdout.write('Usage: pnpm run workspace:migration:dry-run --runs <isolated-copy> [--original-runs-root <source-runs-root>]\n');
+  process.stdout.write('Usage: pnpm run workspace:migration:dry-run --runs <isolated-copy> [--original-runs-root <source-runs-root>] [--to 1|2 --output <new-file>]\n');
   return;
  }
  if (!values.runs) throw new Error('isolated-runs-copy-required');
+ const targetVersion = values.to;
+ const isDryRun = targetVersion === undefined && values.output === undefined;
+ if (!isDryRun && ((targetVersion !== '1' && targetVersion !== '2') || !values.output))
+  throw new Error('target-version-and-output-required');
  const runsRoot = await realpath(values.runs);
  const stateBytes = await readReplicaState(runsRoot);
- const {candidate, summary} = convertWorkspaceState(JSON.parse(stateBytes.toString('utf8')));
+ const snapshot = JSON.parse(stateBytes.toString('utf8'));
+ if (targetVersion && snapshot?.version !== (targetVersion === '1' ? 2 : 1))
+  throw new Error('unexpected-source-version');
+ const sourceVersion = snapshot?.version;
+ const legacyState = sourceVersion === 2 ? readWorkspaceStateCandidate(snapshot) : snapshot;
+ const {candidate, summary} = convertWorkspaceState(legacyState);
  const workspaceData = candidate.workspaceData;
  const reportIds = new Set(candidate.reportOwners.map(owner => owner.reportId));
  const expectedPaths = new Map<string, string>();
@@ -89,24 +118,31 @@ async function main() {
  ];
  const hasPassed = summary.hasPreservedRequestIds && summary.hasPreservedAttemptIds && artifacts.issueCount === 0 &&
   !summary.stateDiagnostics.some(issue => issue.scope === 'active');
+ const output = JSON.stringify(targetVersion === '1' ? legacyState : candidate);
+ const hasWritten = !isDryRun && hasPassed && cutoverBlockers.length === 0;
+ if (hasWritten) {
+  if (!stateBytes.equals(await readReplicaState(runsRoot))) throw new Error('replica-state-changed-during-read');
+  await writeSnapshot(values.output!, output);
+ }
  process.stdout.write(JSON.stringify({
-  isDryRun: true,
-  sourceVersion: 1,
+  isDryRun,
+  sourceVersion,
   candidateVersion: candidate.version,
   stateSha256: createHash('sha256').update(stateBytes).digest('hex'),
   candidateSha256: createHash('sha256').update(JSON.stringify(candidate)).digest('hex'),
+  ...(!isDryRun ? { targetVersion: Number(targetVersion), hasWritten, outputSha256: createHash('sha256').update(output).digest('hex') } : {}),
   ...summary,
   artifacts,
   cutoverBlockers,
   hasPassed,
  }, null, 2) + '\n');
- if (!hasPassed) process.exitCode = 1;
+ if (!hasPassed || (!isDryRun && !hasWritten)) process.exitCode = 1;
 }
 
 await main().catch(error => {
  // Parse and filesystem exceptions may include snapshot paths or input content.
  const allowedCodes = /^[a-z][a-z0-9-]+$/;
  const code = error instanceof Error && allowedCodes.test(error.message) ? error.message : 'workspace-migration-dry-run-error';
- process.stderr.write(JSON.stringify({isDryRun: true, hasPassed: false, code}) + '\n');
+ process.stderr.write(JSON.stringify({hasPassed: false, code}) + '\n');
  process.exitCode = 1;
 });

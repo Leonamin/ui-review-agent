@@ -49,7 +49,10 @@ test('two slots claim unique attempts, leave third queued, and advance after a c
         await waitFor(() => engine.urls.length === 3);
         assert.equal(service.executionStatus.runningCount, 2);
         engine.releases[1](); engine.releases[2]();
-        await waitFor(() => service.executionStatus.runningCount === 0);
+        await waitFor(async () => {
+            const targets = (await readStoredReviewTask(service, created.task.taskId)).revisions[0].targets;
+            return targets.every(target => ['failed', 'completed'].includes(target.attempts[0].status));
+        });
         const targets = (await readStoredReviewTask(service, created.task.taskId)).revisions[0].targets;
         assert.equal(targets[0].attempts[0].status, 'failed');
         assert.equal(targets[0].attempts[0].runStatus, 'cancelled');

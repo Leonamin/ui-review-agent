@@ -19,6 +19,17 @@ pnpm run workspace:migration:dry-run --runs /path/to/isolated-copy
 
 출력의 `hasPassed`는 변환·파일 검증 결과입니다. `cutoverBlockers`는 실행 중인 시도처럼 전환 전에 확인할 조건을 별도로 표시합니다. 후보 상태는 파일에 저장되지 않습니다. 저장된 절대 캡처 경로를 복제본 안으로 대응시켜야 하는 경우 `--original-runs-root`를 함께 지정할 수 있습니다.
 
+## 격리 검증 결과 (2026-11-20)
+
+- 합성 복제본 테스트 5개 통과. 보고서 ID·경로와 캡처 해시, 휴지통 숨김 상태, 대기·시작 대기 요청의 ID 보존을 확인했습니다. 읽기 전용 검사 전후에 합성 상태 파일과 보고서 파일이 유지됐습니다.
+- **v2 보고서 조회와 대기 검토 재개 검증은 차단됨.** 별도 임시 폴더에 합성 v1 상태와 동일 입력에서 생성한 v2 후보를 각각 저장했습니다. v1 서비스는 시작됐고, v2 후보를 읽은 [ReviewService](../src/review-service.ts)는 `Unsupported review state` 오류로 시작 단계에서 중단됐습니다. v2 후보 파일의 내용은 유지됐습니다. 서비스가 v2를 읽을 수 있게 연결한 뒤 보고서 조회와 대기 검토의 실제 실행을 확인해야 합니다.
+
+합성 복제본 테스트 재현 명령입니다.
+
+```sh
+pnpm exec tsx --test tests/workspace-state-converter.test.ts tests/workspace-state-audit.test.ts
+```
+
 ## 다음 검증과 완료 기준
 
 1. 격리 환경에서 v2 후보의 보고서 읽기 경로를 연결합니다. 이전 회차와 현재 요청이 섞인 작업, 단독 보고서, 다른 작업공간으로 이동한 보고서, 휴지통 보고서에서 기존 ID·상대 경로·표시 소속과 숨김 상태를 대조합니다.
